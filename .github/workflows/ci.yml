@@ -65,6 +65,9 @@ jobs:
       - name: Install pinned toolchain
         run: rustup show
       - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: just
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -73,7 +76,7 @@ jobs:
       - name: Unit-test the platform resolver
         run: npm test
       - name: Build the release binary
-        run: cargo build --release --locked
+        run: just build-release
       - name: Stage the native binary into its platform package
         run: |
           mkdir -p packages/allowlister-terminal-approval-plugin-linux-x64/bin

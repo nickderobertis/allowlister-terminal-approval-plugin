@@ -12,5 +12,10 @@ node_modules/
 *.profraw
 /lcov.info
 
+# Local allowlister config: when developing in an allowlister-hooked environment,
+# `allowlister config add --local` drops rules here to allow the read-only llmlint
+# judge (read/glob/grep) so `just lint-llm` can run. Local-only, never shipped.
+/.allowlister.jsonc
+
 # Editor / OS
 .DS_Store

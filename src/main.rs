@@ -75,9 +75,15 @@ fn main() {
     }
 
     let mut stdin = String::new();
-    io::stdin()
-        .read_to_string(&mut stdin)
-        .expect("read allowlister plugin stdin");
+    if io::stdin().read_to_string(&mut stdin).is_err() {
+        // The payload could not be read as UTF-8 text — an I/O error, or non-UTF-8
+        // bytes. There is no coherent request to put in front of a human, so defer
+        // to allowlister's own flow rather than panic on a recoverable read.
+        write_response(
+            "defer",
+            "could not read allowlister plugin input, deferring to allowlister",
+        );
+    }
 
     // Hot path: only an `ask` verdict needs a human. Every other state settles
     // here. Probe `current_verdict` alone — no full `Value` tree — and exit

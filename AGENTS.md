@@ -25,7 +25,7 @@ Built from the create-repo references (`compose_repo_plan.py --shape cli
 
 - **Product shape:** cli (a spawn-once allowlister plugin)
 - **Language(s):** rust
-- **References composed:** base, shapes/cli, languages/rust, intersections/rust-cli, ci, releasing, llmlint
+- **References composed:** base.md, shapes/cli.md, languages/rust.md, intersections/rust-cli.md, ci.md, releasing.md, llmlint.md
 - **Distribution:** crates.io (library) + npm carrier with per-platform native
   binaries (the plugin) + GitHub Release archives. Mirrors allowlister's
   release-plz/`.cargo` setup and allowlister-remote's npm-carrier pattern.
