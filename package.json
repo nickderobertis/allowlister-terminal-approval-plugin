@@ -8,7 +8,7 @@
     "packages/allowlister-terminal-approval-plugin"
   ],
   "scripts": {
-    "test": "node --test 'packages/allowlister-terminal-approval-plugin/test/**/*.test.mjs'",
+    "test": "node --test packages/allowlister-terminal-approval-plugin/test/*.test.mjs",
     "release:set-npm-version": "node scripts/set-npm-package-version.mjs",
     "release:stage-npm": "node scripts/stage-npm-package.mjs",
     "release:smoke-npm": "bash scripts/smoke-npm-package.sh"
