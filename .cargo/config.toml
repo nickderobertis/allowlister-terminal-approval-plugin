@@ -1,0 +1,21 @@
+# Per-target release tuning for the shipped binary. These triples are the ones
+# the release workflow publishes; building for the host target (plain `cargo
+# build`, the gate, dev) is unaffected because Cargo only applies a
+# `[target.<triple>]` section when that triple is selected — and Linux dev/CI
+# runs the `-gnu` host, not these `-musl` triples.
+#
+# The plugin spawns once per gated command, so cold-start latency is what
+# matters. On Linux, link a classic non-PIE executable: the `-musl` targets
+# already link fully static (crt-static is their default) but as static *PIE*, so
+# the dynamic loader still self-relocates every launch. `relocation-model=static`
+# makes rustc emit a non-PIE `ET_EXEC` with the fastest cold start — and it must
+# be this knob, not a raw `-C link-arg=-no-pie`, which flips the ELF type without
+# switching musl's PIE-aware startup object (`rcrt1.o`) so the binary builds but
+# segfaults. The crate has zero C deps, so self-contained musl needs no system C
+# toolchain. macOS has no equivalent lever (arm64 mandates PIE, libSystem cannot
+# be statically linked) and its dyld shared cache already makes launch cheap.
+[target.x86_64-unknown-linux-musl]
+rustflags = ["-C", "relocation-model=static"]
+
+[target.aarch64-unknown-linux-musl]
+rustflags = ["-C", "relocation-model=static"]

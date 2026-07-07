@@ -1,0 +1,27 @@
+{
+  "name": "@nickderobertis/allowlister-terminal-approval-plugin-darwin-arm64",
+  "version": "0.1.0",
+  "description": "darwin arm64 native binary for @nickderobertis/allowlister-terminal-approval-plugin",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nickderobertis/allowlister-terminal-approval-plugin.git"
+  },
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "files": [
+    "README.md",
+    "bin/"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Least privilege: CI only needs to read the repository.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # Authenticate cargo-binstall's GitHub API calls in `just bootstrap` so it is
+  # not rate-limited.
+  GITHUB_TOKEN: ${{ github.token }}
+
+jobs:
+  # The gate. A clean checkout runs `just bootstrap` then `just check` — the same
+  # full quality gate developers run locally (format, type-check, lint, unit +
+  # real-terminal e2e, enforced coverage, deps/security, docs, release build).
+  # Matrix over the unix platforms the binary ships to. The context names
+  # (`test (ubuntu-latest)`, ...) are the protected required checks — keep stable.
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned toolchain
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # Don't cache ~/.cargo/bin: a stale cached tool binary collides with
+          # bootstrap's reinstall. Reinstalling the prebuilt each run is cheap.
+          cache-bin: false
+      # Prebuilt binaries for the cargo subcommands the gate needs; `bootstrap`
+      # below is idempotent and no-ops over anything already present.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: just,cargo-nextest,cargo-llvm-cov,cargo-deny,cargo-machete
+      - name: Bootstrap
+        run: just bootstrap
+      - name: Gate (just check)
+        run: just check
+
+  # Prove the npm install path a user actually takes: build the host binary,
+  # stage it into the matching platform package, unit-test the JS resolver, then
+  # install the packed package and smoke the linked native binary — separate from
+  # the dev gate, which only sets up the dev environment.
+  install-smoke:
+    name: install-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned toolchain
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Unit-test the platform resolver
+        run: npm test
+      - name: Build the release binary
+        run: cargo build --release --locked
+      - name: Stage the native binary into its platform package
+        run: |
+          mkdir -p packages/allowlister-terminal-approval-plugin-linux-x64/bin
+          cp target/release/allowlister-terminal-approval-plugin \
+            packages/allowlister-terminal-approval-plugin-linux-x64/bin/allowlister-terminal-approval-plugin
+          chmod +x packages/allowlister-terminal-approval-plugin-linux-x64/bin/allowlister-terminal-approval-plugin
+      - name: Smoke-test the npm install path
+        run: npm run release:smoke-npm

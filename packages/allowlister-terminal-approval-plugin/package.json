@@ -1,0 +1,35 @@
+{
+  "name": "@nickderobertis/allowlister-terminal-approval-plugin",
+  "version": "0.1.0",
+  "description": "npm installer for the allowlister terminal approval plugin",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nickderobertis/allowlister-terminal-approval-plugin.git"
+  },
+  "bin": {
+    "allowlister-terminal-approval-plugin": "bin/allowlister-terminal-approval-plugin"
+  },
+  "scripts": {
+    "postinstall": "node install.mjs"
+  },
+  "files": [
+    "README.md",
+    "bin/",
+    "lib/",
+    "install.mjs"
+  ],
+  "os": [
+    "linux",
+    "darwin"
+  ],
+  "//optionalDependencies": "The per-platform native binary packages are injected as optionalDependencies at publish time by scripts/set-npm-package-version.mjs. They are kept out of source so the dev lockfile stays in sync (their versions are never published at 0.1.0).",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

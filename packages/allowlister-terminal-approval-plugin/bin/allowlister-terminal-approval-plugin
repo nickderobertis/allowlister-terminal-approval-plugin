@@ -1,0 +1,33 @@
+#!/usr/bin/env node
+// JS launcher fallback.
+//
+// On install, `install.mjs` replaces this file in place with the native binary
+// so the command on PATH *is* the Rust executable with no Node in the hot path.
+// This launcher only runs when that replacement was skipped — when install
+// scripts were disabled (`--ignore-scripts`). In that case it resolves the native
+// binary from the matching platform package and execs it, forwarding stdio and
+// the exit code unchanged.
+
+import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
+import { binarySpecifier } from "../lib/platform.mjs";
+
+const require = createRequire(import.meta.url);
+
+let binary;
+try {
+  binary = require.resolve(binarySpecifier());
+} catch (error) {
+  console.error(
+    `Missing native allowlister-terminal-approval-plugin binary for ${process.platform}-${process.arch}.`,
+  );
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exit(1);
+}
+
+const result = spawnSync(binary, process.argv.slice(2), { stdio: "inherit" });
+if (result.error) {
+  console.error(result.error.message);
+  process.exit(1);
+}
+process.exit(result.status ?? 1);

@@ -1,0 +1,52 @@
+[package]
+name = "allowlister-terminal-approval-plugin"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+license = "MIT"
+description = "The allowlister terminal approval experience as a standalone dynamic approval plugin: on an `ask` verdict it renders the flagged command fragments (or tool call) on the controlling terminal and returns the operator's allow/deny. Also a reusable library that powers allowlister-remote's local prompt."
+repository = "https://github.com/nickderobertis/allowlister-terminal-approval-plugin"
+homepage = "https://github.com/nickderobertis/allowlister-terminal-approval-plugin"
+documentation = "https://docs.rs/allowlister-terminal-approval-plugin"
+readme = "README.md"
+keywords = ["cli", "security", "allowlister", "approval", "claude-code"]
+categories = ["command-line-utilities", "development-tools"]
+# Package only what a crates.io / docs.rs consumer needs. Keeps the published
+# crate small and out of the npm carrier, CI, tests, and the CLAUDE.md symlink.
+# Patterns are root-anchored (leading `/`) so a bare `README.md` does not also
+# sweep in the npm packages' and node_modules' READMEs.
+include = ["/src/**/*.rs", "/Cargo.toml", "/README.md", "/LICENSE"]
+
+[lib]
+name = "allowlister_terminal_approval"
+path = "src/lib.rs"
+
+[[bin]]
+name = "allowlister-terminal-approval-plugin"
+path = "src/main.rs"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[dev-dependencies]
+# Drive the compiled binary as a subprocess in the non-interactive e2e suite.
+assert_cmd = "2.0"
+predicates = "3.1"
+
+# The interactive `/dev/tty` prompt can only be exercised under a real
+# controlling terminal, so the unix e2e allocates a PTY (nix::pty::openpty) and
+# makes the child its session leader with that PTY as its controlling terminal
+# (libc setsid + TIOCSCTTY). Unix-only: the terminal experience is `/dev/tty`.
+[target.'cfg(unix)'.dev-dependencies]
+nix = { version = "0.29", default-features = false, features = ["term"] }
+libc = "0.2"
+
+# A CLI spawned once per gated command: optimize for a small, fast-to-start
+# artifact. Thin LTO + a single codegen unit shrink and speed the binary without
+# fat-LTO link times; stripping drops debug info release users never read.
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"

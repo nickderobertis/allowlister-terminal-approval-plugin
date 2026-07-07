@@ -1,0 +1,16 @@
+# Rust
+/target/
+
+# npm
+node_modules/
+# Native binaries staged into the per-platform packages at release time; never
+# committed. Scoped to the platform packages (…-linux-x64, …-darwin-arm64, …) so
+# the carrier package's committed JS launcher (packages/<carrier>/bin/) is kept.
+/packages/allowlister-terminal-approval-plugin-*/bin/
+
+# Coverage / profiling artifacts
+*.profraw
+/lcov.info
+
+# Editor / OS
+.DS_Store

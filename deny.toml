@@ -1,0 +1,40 @@
+# cargo-deny policy. Strict by default: advisories, licenses, bans, and sources
+# all fail the check rather than warn. Any exception below is explicit and
+# carries a reason, so the policy never silently accumulates debt.
+
+[graph]
+all-features = true
+
+[advisories]
+# Vulnerabilities and unmaintained/yanked crates fail the check.
+yanked = "deny"
+ignore = []
+
+[licenses]
+# Permissive licenses compatible with this MIT-licensed crate. This is the exact
+# set the current dependency tree (runtime + dev) uses; adding a dependency with
+# a new license fails the check until that license is reviewed and added here.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Unicode-3.0",
+]
+confidence-threshold = 0.9
+exceptions = []
+
+[bans]
+# Duplicate versions of the same crate fail; wildcard version requirements are
+# forbidden in this repo's manifests. No skips are needed — the tree is small.
+multiple-versions = "deny"
+wildcards = "deny"
+allow = []
+deny = []
+skip = []
+skip-tree = []
+
+[sources]
+# Only crates.io. This crate has no git or alternate-registry dependencies.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

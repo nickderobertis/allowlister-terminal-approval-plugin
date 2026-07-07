@@ -1,0 +1,16 @@
+{
+  "name": "allowlister-terminal-approval-plugin-workspace",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "npm distribution workspace for the allowlister terminal approval plugin (the product is the Rust crate).",
+  "workspaces": [
+    "packages/allowlister-terminal-approval-plugin"
+  ],
+  "scripts": {
+    "test": "node --test 'packages/allowlister-terminal-approval-plugin/test/**/*.test.mjs'",
+    "release:set-npm-version": "node scripts/set-npm-package-version.mjs",
+    "release:stage-npm": "node scripts/stage-npm-package.mjs",
+    "release:smoke-npm": "bash scripts/smoke-npm-package.sh"
+  }
+}

@@ -1,0 +1,166 @@
+name: publish
+
+# Build and distribute a published release: the per-platform native binaries
+# (attached to the GitHub Release with checksums), the npm carrier packages, and
+# the crates.io crate.
+#
+# The Release itself is created by release-plz (see release-plz.yml) when a
+# version-bump PR merges. Because release-plz uses a PAT, that release fires the
+# `release: published` event below. Creating a release by hand in the GitHub UI
+# is a supported manual fallback — it triggers the same event.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Gate the release on a passing test run so untested artifacts never publish
+  # (belt-and-suspenders: release-plz only auto-merges when the gate is green,
+  # but a manual release must be gated too).
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: just,cargo-nextest
+      - run: just lint
+      - run: just test
+      - run: just test-e2e
+
+  build-binary:
+    name: build-binary (${{ matrix.platform }})
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Native runners per target; the crate has zero C deps, so musl links a
+          # fully static, non-PIE binary (no glibc floor, fastest cold start) with
+          # no musl-tools, and macОS cross-builds x86_64<->arm64 in the Apple
+          # toolchain. The terminal experience is unix-only, so no Windows target.
+          - platform: linux-x64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - platform: linux-arm64
+            os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+          - platform: darwin-x64
+            os: macos-latest
+            target: x86_64-apple-darwin
+          - platform: darwin-arm64
+            os: macos-latest
+            target: aarch64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add Rust target
+        run: rustup target add ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Build the release binary
+        run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Stage the artifact
+        shell: bash
+        # Name each artifact `<binary>-<platform>` so release:stage-npm picks it up.
+        run: |
+          mkdir -p dist/artifacts
+          artifact="allowlister-terminal-approval-plugin-${{ matrix.platform }}"
+          cp "target/${{ matrix.target }}/release/allowlister-terminal-approval-plugin" "dist/artifacts/${artifact}"
+          chmod +x "dist/artifacts/${artifact}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.platform }}
+          path: dist/artifacts/*
+          if-no-files-found: error
+
+  github-release:
+    needs: build-binary
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist/release-artifacts
+          merge-multiple: true
+      - name: Generate checksums
+        run: |
+          cd dist/release-artifacts
+          sha256sum allowlister-terminal-approval-plugin-* > SHA256SUMS
+      - name: Attach binaries to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: |
+            dist/release-artifacts/allowlister-terminal-approval-plugin-*
+            dist/release-artifacts/SHA256SUMS
+
+  npm-publish:
+    needs: [build-binary, github-release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist/release-artifacts
+          merge-multiple: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      - run: npm ci
+      - name: Set npm package versions from the tag
+        run: node scripts/set-npm-package-version.mjs "${GITHUB_REF_NAME#v}"
+      - name: Stage native binaries into the platform packages
+        run: npm run release:stage-npm -- dist/release-artifacts
+      - name: Smoke-test the packed npm package
+        run: npm run release:smoke-npm
+      - name: Publish npm packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          publish_pkg() {
+            local dir="$1" name version
+            name="$(node -e "console.log(require('./packages/$dir/package.json').name)")"
+            version="$(node -e "console.log(require('./packages/$dir/package.json').version)")"
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "$name@$version already published"
+              return 0
+            fi
+            npm publish "./packages/$dir" --access public --provenance
+          }
+          # Platform packages must publish before the parent that depends on them.
+          publish_pkg allowlister-terminal-approval-plugin-linux-x64
+          publish_pkg allowlister-terminal-approval-plugin-linux-arm64
+          publish_pkg allowlister-terminal-approval-plugin-darwin-x64
+          publish_pkg allowlister-terminal-approval-plugin-darwin-arm64
+          publish_pkg allowlister-terminal-approval-plugin
+
+  # crates.io publishing is opt-in: set the repository variable
+  # PUBLISH_TO_CRATES_IO=true and provide the CARGO_REGISTRY_TOKEN secret. This is
+  # what allowlister-remote depends on as a semver version.
+  crates-publish:
+    needs: [test]
+    if: ${{ vars.PUBLISH_TO_CRATES_IO == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo publish --locked
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

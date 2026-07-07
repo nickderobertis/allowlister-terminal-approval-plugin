@@ -1,0 +1,27 @@
+{
+  "name": "@nickderobertis/allowlister-terminal-approval-plugin-linux-x64",
+  "version": "0.1.0",
+  "description": "linux x64 native binary for @nickderobertis/allowlister-terminal-approval-plugin",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nickderobertis/allowlister-terminal-approval-plugin.git"
+  },
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "files": [
+    "README.md",
+    "bin/"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
