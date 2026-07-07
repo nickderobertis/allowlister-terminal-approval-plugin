@@ -25,7 +25,10 @@
 # Harness selection: by default llmlint resolves the harness from `oneharness.toml`
 # (or llmlint.yml's `agents.default.harness`). If the harness you run in Claude
 # Code sessions differs from the committed default, export the override below.
-# llmlint: ignore-file[robust_shell, tool_output_is_signal, boundary_inputs_validated] deliberate for a session-startup installer (see header): `set -e` is omitted so a flaky install can't abort the hook — the script owns its exit codes and always exits 0; success stays quiet while failures log-and-continue rather than block startup; and the toolchain is installed from PyPI (`uv tool install llmlint-cli`) whose wheels ship with Trusted Publishing + PEP 740 attestations, so no unvalidated external input is executed.
+# `set -e` is deliberately omitted for this session-startup installer (see header):
+# a flaky install must never abort the hook — the script owns its exit codes and
+# always exits 0.
+# llmlint: ignore-file[tool_output_is_signal, boundary_inputs_validated] session-startup installer: success stays quiet while failures log-and-continue rather than block startup; the toolchain is installed from PyPI (`uv tool install llmlint-cli`), whose wheels ship with Trusted Publishing + PEP 740 attestations, so no unvalidated external input is executed.
 set -uo pipefail
 
 # Version floor, as a PyPI constraint (the `llmlint-cli` package version tracks the
