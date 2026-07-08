@@ -74,10 +74,17 @@ fn main() {
         return;
     }
 
+    // A stdin read failure (e.g. non-UTF-8 bytes on the pipe) is recoverable: an
+    // approval request we cannot read is an anomaly worth a human's eyes, so
+    // surface it with `ask` — the same path a malformed payload takes below —
+    // rather than panicking with an undocumented exit 101.
     let mut stdin = String::new();
-    io::stdin()
-        .read_to_string(&mut stdin)
-        .expect("read allowlister plugin stdin");
+    if let Err(error) = io::stdin().read_to_string(&mut stdin) {
+        write_response(
+            "ask",
+            format!("could not read allowlister plugin input: {error}"),
+        );
+    }
 
     // Hot path: only an `ask` verdict needs a human. Every other state settles
     // here. Probe `current_verdict` alone — no full `Value` tree — and exit
