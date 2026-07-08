@@ -43,6 +43,11 @@ jobs:
         run: |
           ./scripts/setup-llmlint.sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      # llmlint's default agent drives the `claude-code` harness, which shells out
+      # to the `claude` CLI. It is not preinstalled on the runner, so oneharness
+      # skips the harness ("`claude` not found on PATH") and every rule errors.
+      - name: Install the Claude Code CLI (llmlint's harness)
+        run: npm install -g @anthropic-ai/claude-code
       - name: Lint changed files
         env:
           # The claude-code harness credential. Provide EITHER a subscription
