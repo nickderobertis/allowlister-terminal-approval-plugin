@@ -97,6 +97,7 @@ pub fn start_local_prompt(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Verdict;
     use std::io::Cursor;
 
     #[test]
@@ -106,7 +107,7 @@ mod tests {
         run_prompt_loop(Cursor::new(b"a\n".to_vec()), &mut written, &tx, "PROMPT");
 
         let decision = rx.try_recv().expect("a decision was sent");
-        assert_eq!(decision.verdict, "allow");
+        assert_eq!(decision.verdict, Verdict::Allow);
         // The prompt text is written to the terminal before reading.
         assert!(String::from_utf8(written).unwrap().starts_with("PROMPT\n"));
     }
@@ -123,7 +124,10 @@ mod tests {
             "PROMPT",
         );
 
-        assert_eq!(rx.try_recv().expect("a decision was sent").verdict, "deny");
+        assert_eq!(
+            rx.try_recv().expect("a decision was sent").verdict,
+            Verdict::Deny
+        );
         // Each unrecognized line drew a re-prompt (two before the accepted deny).
         let out = String::from_utf8(written).unwrap();
         assert_eq!(
