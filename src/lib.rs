@@ -43,6 +43,22 @@ pub enum Verdict {
     Defer,
 }
 
+impl Verdict {
+    /// The lowercase wire token allowlister reads for this verdict — the same
+    /// string [`Serialize`] emits, as a `&'static str` for callers that need the
+    /// bare token without routing through JSON (e.g. embedding it in another
+    /// type's string field). allowlister-remote uses this to fold a local
+    /// terminal decision into its unified event stream.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Verdict::Allow => "allow",
+            Verdict::Deny => "deny",
+            Verdict::Ask => "ask",
+            Verdict::Defer => "defer",
+        }
+    }
+}
+
 /// A decision captured from the operator at the local terminal — always an
 /// `Allow` or `Deny`, the two answers the prompt accepts.
 pub struct LocalDecision {
@@ -404,6 +420,8 @@ mod tests {
             (Verdict::Defer, "\"defer\"", "Defer"),
         ] {
             assert_eq!(format!("{verdict:?}"), debug);
+            // `as_str` returns the same token serde emits, minus the JSON quotes.
+            assert_eq!(format!("\"{}\"", verdict.as_str()), wire);
             assert_eq!(
                 serde_json::to_string(&verdict).expect("verdict serializes"),
                 wire
