@@ -10,13 +10,25 @@
 import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
-const [, , artifactsDir = "dist/release-artifacts"] = process.argv;
+// Usage: stage-npm-package.mjs [artifactsDir] [platform...]
+// With no platforms named, stages every platform (the full release). Naming a
+// subset (e.g. just the host's `linux-x64`) stages only those — used by the
+// install-smoke CI job, which builds one host binary rather than the full set.
+const [, , artifactsDir = "dist/release-artifacts", ...requestedPlatforms] = process.argv;
 const packagesDir = "packages";
 const binary = "allowlister-terminal-approval-plugin";
 
 // One package per unix platform; the release workflow names each artifact
 // `<binary>-<platform>`.
-const platforms = ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64"];
+const allPlatforms = ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64"];
+for (const platform of requestedPlatforms) {
+  if (!allPlatforms.includes(platform)) {
+    throw new Error(
+      `Unknown platform ${platform}; expected one of ${allPlatforms.join(", ")}`,
+    );
+  }
+}
+const platforms = requestedPlatforms.length > 0 ? requestedPlatforms : allPlatforms;
 
 let stagedCount = 0;
 for (const target of platforms) {

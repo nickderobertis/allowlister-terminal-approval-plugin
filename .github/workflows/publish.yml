@@ -31,14 +31,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: rustup show
+      - name: Install pinned toolchain
+        run: rustup show
       - uses: Swatinem/rust-cache@v2
+        with:
+          # Don't cache ~/.cargo/bin: a stale cached tool binary collides with
+          # bootstrap's reinstall. Reinstalling the prebuilt each run is cheap.
+          cache-bin: false
       - uses: taiki-e/install-action@v2
         with:
-          tool: just,cargo-nextest
-      - run: just lint
-      - run: just test
-      - run: just test-e2e
+          tool: just,cargo-nextest,cargo-llvm-cov,cargo-deny,cargo-machete
+      - name: Bootstrap
+        run: just bootstrap
+      # Gate the release on the SAME full gate developers and CI run, not a
+      # hand-picked subset — so the release can never pass on a check `just check`
+      # would fail (fmt, coverage, deps/security, docs, release build).
+      - name: Gate (just check)
+        run: just check
 
   build-binary:
     name: build-binary (${{ matrix.platform }})
@@ -69,8 +78,11 @@ jobs:
       - name: Add Rust target
         run: rustup target add ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
+      - uses: extractions/setup-just@v3
       - name: Build the release binary
-        run: cargo build --release --locked --target ${{ matrix.target }}
+        # Route through the same command surface as the dev gate and install-smoke;
+        # `build-release <target>` cross-compiles for the per-platform artifact.
+        run: just build-release ${{ matrix.target }}
       - name: Stage the artifact
         shell: bash
         # Name each artifact `<binary>-<platform>` so release:stage-npm picks it up.

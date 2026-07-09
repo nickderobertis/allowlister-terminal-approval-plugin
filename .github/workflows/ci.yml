@@ -65,9 +65,6 @@ jobs:
       - name: Install pinned toolchain
         run: rustup show
       - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: just
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -75,13 +72,17 @@ jobs:
       - run: npm ci
       - name: Unit-test the platform resolver
         run: npm test
+      - uses: extractions/setup-just@v3
       - name: Build the release binary
         run: just build-release
       - name: Stage the native binary into its platform package
+        # Name the host binary as the release artifact `release:stage-npm` expects,
+        # then stage it with the same script the publish workflow uses — host
+        # platform only, since this job builds just the one binary.
         run: |
-          mkdir -p packages/allowlister-terminal-approval-plugin-linux-x64/bin
+          mkdir -p dist/artifacts
           cp target/release/allowlister-terminal-approval-plugin \
-            packages/allowlister-terminal-approval-plugin-linux-x64/bin/allowlister-terminal-approval-plugin
-          chmod +x packages/allowlister-terminal-approval-plugin-linux-x64/bin/allowlister-terminal-approval-plugin
+            dist/artifacts/allowlister-terminal-approval-plugin-linux-x64
+          npm run release:stage-npm -- dist/artifacts linux-x64
       - name: Smoke-test the npm install path
         run: npm run release:smoke-npm

@@ -3,6 +3,9 @@
 
 # npm
 node_modules/
+# Release/staging artifacts: named native binaries the publish and install-smoke
+# workflows build before staging them into the platform packages. Ephemeral.
+/dist/
 # Native binaries staged into the per-platform packages at release time; never
 # committed. Scoped to the platform packages (…-linux-x64, …-darwin-arm64, …) so
 # the carrier package's committed JS launcher (packages/<carrier>/bin/) is kept.

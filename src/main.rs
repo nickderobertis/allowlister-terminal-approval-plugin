@@ -15,7 +15,7 @@
 
 use allowlister_terminal_approval::{
     flagged_fragments, request_summary, start_local_prompt, static_decision, tool_input_json,
-    LocalPrompt, PromptLabels,
+    LocalPrompt, PromptLabels, Verdict,
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -24,15 +24,15 @@ use std::io::{self, Read};
 use std::process;
 
 #[derive(Serialize)]
-struct PluginResponse<'a> {
-    verdict: &'a str,
+struct PluginResponse {
+    verdict: Verdict,
     reason: String,
 }
 
 /// Print the plugin's verdict on stdout and exit. Always exits `0` with valid
 /// JSON: allowlister treats a non-zero exit or unparsable output as `defer`, and
 /// this helper never risks that ambiguity.
-fn write_response(verdict: &str, reason: impl Into<String>) -> ! {
+fn write_response(verdict: Verdict, reason: impl Into<String>) -> ! {
     let response = PluginResponse {
         verdict,
         reason: reason.into(),
@@ -80,7 +80,7 @@ fn main() {
         // bytes. There is no coherent request to put in front of a human, so defer
         // to allowlister's own flow rather than panic on a recoverable read.
         write_response(
-            "defer",
+            Verdict::Defer,
             "could not read allowlister plugin input, deferring to allowlister",
         );
     }
@@ -90,7 +90,7 @@ fn main() {
     // before any of the prompt setup below.
     if static_decision(&stdin) == Some(true) {
         write_response(
-            "defer",
+            Verdict::Defer,
             "allowlister verdict does not need terminal approval",
         );
     }
@@ -99,7 +99,10 @@ fn main() {
     // error for a malformed payload. A parse failure of an approval request is an
     // anomaly worth a human's eyes, so surface it with `ask` rather than defer.
     let input: Value = serde_json::from_str(&stdin).unwrap_or_else(|error| {
-        write_response("ask", format!("invalid allowlister plugin input: {error}"))
+        write_response(
+            Verdict::Ask,
+            format!("invalid allowlister plugin input: {error}"),
+        )
     });
 
     // For a shell payload this names the command; for a tool call, the tool — so
@@ -131,7 +134,7 @@ fn main() {
             // The terminal closed (EOF) before the operator answered: abstain and
             // let allowlister decide the request as it normally would.
             Err(_) => write_response(
-                "defer",
+                Verdict::Defer,
                 "no decision at the terminal, deferring to allowlister",
             ),
         },
@@ -139,7 +142,7 @@ fn main() {
         // host): there is no way to ask a human, so defer to allowlister's own
         // flow rather than block or force a verdict.
         None => write_response(
-            "defer",
+            Verdict::Defer,
             "no controlling terminal for approval, deferring to allowlister",
         ),
     }
