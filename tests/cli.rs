@@ -57,6 +57,24 @@ fn malformed_payload_surfaces_as_ask_with_the_parse_error() {
 }
 
 #[test]
+fn non_utf8_payload_defers_instead_of_crashing() {
+    // A binary or otherwise non-UTF-8 payload can't be read as text. The plugin
+    // must still exit 0 with a valid verdict — defer to allowlister — rather than
+    // panic on the stdin read.
+    let output = plugin()
+        .write_stdin(vec![0xff, 0xfe, 0x00, 0x9c])
+        .assert()
+        .success();
+    let response: Value = serde_json::from_slice(&output.get_output().stdout)
+        .expect("plugin stdout is a JSON object");
+    assert_eq!(response["verdict"], "defer");
+    assert_eq!(
+        response["reason"],
+        "could not read allowlister plugin input, deferring to allowlister"
+    );
+}
+
+#[test]
 fn version_flag_prints_the_crate_version() {
     plugin()
         .arg("--version")

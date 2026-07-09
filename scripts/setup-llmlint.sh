@@ -64,6 +64,16 @@ persist_session_env() {
   [ -n "${CLAUDE_ENV_FILE:-}" ] || { log "no CLAUDE_ENV_FILE (not a session); skipping env"; return 0; }
   {
     case ":${PATH}:" in *":${BIN_DIR}:"*) ;; *) printf 'export PATH=%q\n' "${BIN_DIR}:${PATH}";; esac
+    # The claude-code harness llmlint drives runs headless with
+    # `--dangerously-skip-permissions`, which Claude Code refuses under
+    # root/sudo unless IS_SANDBOX is set. The cloud/web execution environment
+    # runs as root and marks itself with CLAUDE_CODE_REMOTE; require BOTH so the
+    # root guard is relaxed only inside that verified sandbox — not in any
+    # incidental root context (a local root shell, a root CI runner), which is
+    # what least-privilege demands.
+    if [ "$(id -u 2>/dev/null)" = "0" ] && [ -n "${CLAUDE_CODE_REMOTE:-}" ]; then
+      printf 'export IS_SANDBOX=%q\n' "1"
+    fi
     # TODO: if your session harness differs from the committed oneharness.toml
     # default, select it here, e.g.:
     #   printf 'export ONEHARNESS_HARNESSES=%q\n' "claude-code"

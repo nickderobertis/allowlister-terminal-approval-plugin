@@ -25,7 +25,7 @@ Built from the create-repo references (`compose_repo_plan.py --shape cli
 
 - **Product shape:** cli (a spawn-once allowlister plugin)
 - **Language(s):** rust
-- **References composed:** base, shapes/cli, languages/rust, intersections/rust-cli, ci, releasing, llmlint
+- **References composed:** base.md, shapes/cli.md, languages/rust.md, intersections/rust-cli.md, ci.md, releasing.md, llmlint.md
 - **Distribution:** crates.io (library) + npm carrier with per-platform native
   binaries (the plugin) + GitHub Release archives. Mirrors allowlister's
   release-plz/`.cargo` setup and allowlister-remote's npm-carrier pattern.
@@ -58,7 +58,8 @@ Use the `just` recipes; do not hand-roll equivalents.
   Queue with `gh pr merge --auto --squash`; merged head branches auto-delete.
 - **All gating checks required:** `test (ubuntu-latest)`, `test (ubuntu-24.04-arm)`,
   `test (macos-latest)`, `install-smoke`, `pr-title`, and `llmlint` (the LLM-judge
-  tier, separate from `check`; needs the `ANTHROPIC_API_KEY` secret), plus linear
+  tier, separate from `check`; needs a `CLAUDE_CODE_OAUTH_TOKEN` (subscription,
+  from `claude setup-token`) or `ANTHROPIC_API_KEY` secret), plus linear
   history and no force-push. Releases also need `RELEASE_PLZ_TOKEN`, `NPM_TOKEN`,
   `CARGO_REGISTRY_TOKEN` + the `PUBLISH_TO_CRATES_IO` variable — declared in
   `gh-secrets.json` (`gh-secrets sync`).

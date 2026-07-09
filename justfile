@@ -158,9 +158,11 @@ hooks:
 build:
     cargo build --locked
 
-# Optimized release build (the shipped profile).
-build-release:
-    cargo build --release --locked
+# Optimized release build (the shipped profile). With no argument, builds for the
+# host (the dev gate and install-smoke); with a target triple, cross-compiles for
+# that target (the per-platform release binaries in publish.yml).
+build-release target="":
+    cargo build --release --locked {{ if target != "" { "--target " + target } else { "" } }}
 
 # Full quality gate. Stops at the first failing phase; minimal output on success.
 # This is THE gate: format, type-check, lint, the full test suite (unit +

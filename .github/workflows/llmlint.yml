@@ -35,18 +35,29 @@ jobs:
       - name: Fetch main (diff base)
         run: git fetch --no-tags --depth=2147483647 origin main
       - uses: extractions/setup-just@v3
+      # setup-llmlint.sh installs llmlint via `uv tool`; uv is not preinstalled on
+      # the runner, so provision it first (the script no-ops without it).
+      - uses: astral-sh/setup-uv@v6
       - name: Install oneharness + llmlint
         run: |
           ./scripts/setup-llmlint.sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      # oneharness drives the Claude Code CLI as the judge harness; it isn't
+      # preinstalled on the runner (locally it always is), so provision it.
+      - name: Install Claude Code CLI (llmlint judge harness)
+        run: npm install -g @anthropic-ai/claude-code
       - name: Lint changed files
         env:
-          # The harness credential (Claude Code). Add it as a repo secret; the
-          # step fails fast with a clear message when it is absent.
+          # Harness credential (Claude Code). Prefer a long-lived subscription
+          # token from `claude setup-token` (CLAUDE_CODE_OAUTH_TOKEN); a metered
+          # API key (ANTHROPIC_API_KEY) also works. The step fails fast with a
+          # clear message when neither secret is set.
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-            echo "::error::llmlint needs a harness credential. Add the ANTHROPIC_API_KEY repo secret" \
+          if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+            echo "::error::llmlint needs a harness credential. Add a CLAUDE_CODE_OAUTH_TOKEN secret" \
+                 "(from 'claude setup-token', recommended) or an ANTHROPIC_API_KEY secret" \
                  "(Settings → Secrets and variables → Actions). Fork PRs are gated by the" \
                  "require-approval-for-fork-workflows setting; see the create-repo references." >&2
             exit 1

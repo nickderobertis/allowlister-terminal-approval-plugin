@@ -3,6 +3,9 @@
 
 # npm
 node_modules/
+# Release/staging artifacts: named native binaries the publish and install-smoke
+# workflows build before staging them into the platform packages. Ephemeral.
+/dist/
 # Native binaries staged into the per-platform packages at release time; never
 # committed. Scoped to the platform packages (…-linux-x64, …-darwin-arm64, …) so
 # the carrier package's committed JS launcher (packages/<carrier>/bin/) is kept.
@@ -11,6 +14,11 @@ node_modules/
 # Coverage / profiling artifacts
 *.profraw
 /lcov.info
+
+# Local allowlister config: when developing in an allowlister-hooked environment,
+# `allowlister config add --local` drops rules here to allow the read-only llmlint
+# judge (read/glob/grep) so `just lint-llm` can run. Local-only, never shipped.
+/.allowlister.jsonc
 
 # Editor / OS
 .DS_Store

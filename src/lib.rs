@@ -21,16 +21,48 @@
 //!
 //! [protocol]: https://github.com/nickderobertis/allowlister#dynamic-approval-plugins
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub mod prompt;
 
 pub use prompt::{start_local_prompt, LocalPrompt};
 
-/// A decision captured from the operator at the local terminal.
+/// A verdict over allowlister's dynamic-approval protocol. Serializes to the
+/// exact lowercase wire strings allowlister reads (`allow`/`deny`/`ask`/`defer`),
+/// so a typo'd or arbitrary verdict is a compile error rather than a silent
+/// protocol violation. A terminal [`LocalDecision`] only ever carries `Allow` or
+/// `Deny`; the plugin also emits `Ask`/`Defer` when it hands a request back to
+/// allowlister.
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Verdict {
+    Allow,
+    Deny,
+    Ask,
+    Defer,
+}
+
+impl Verdict {
+    /// The lowercase wire token allowlister reads for this verdict — the same
+    /// string [`Serialize`] emits, as a `&'static str` for callers that need the
+    /// bare token without routing through JSON (e.g. embedding it in another
+    /// type's string field). allowlister-remote uses this to fold a local
+    /// terminal decision into its unified event stream.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Verdict::Allow => "allow",
+            Verdict::Deny => "deny",
+            Verdict::Ask => "ask",
+            Verdict::Defer => "defer",
+        }
+    }
+}
+
+/// A decision captured from the operator at the local terminal — always an
+/// `Allow` or `Deny`, the two answers the prompt accepts.
 pub struct LocalDecision {
-    pub verdict: &'static str,
+    pub verdict: Verdict,
     pub reason: String,
 }
 
@@ -173,11 +205,11 @@ pub fn local_prompt(
 pub fn parse_local_input(line: &str) -> Option<LocalDecision> {
     match line.trim().to_ascii_lowercase().as_str() {
         "a" | "allow" | "y" | "yes" => Some(LocalDecision {
-            verdict: "allow",
+            verdict: Verdict::Allow,
             reason: "approved at local terminal".to_string(),
         }),
         "d" | "deny" | "n" | "no" => Some(LocalDecision {
-            verdict: "deny",
+            verdict: Verdict::Deny,
             reason: "denied at local terminal".to_string(),
         }),
         _ => None,
@@ -376,11 +408,36 @@ mod tests {
     }
 
     #[test]
+    fn verdict_serializes_to_protocol_wire_strings() {
+        // The plugin's output contract: allowlister reads these exact lowercase
+        // strings off stdout. A rename would silently break the protocol, so pin
+        // every variant's wire form here. The `Debug` form (which `assert_eq!`
+        // renders on failure) is pinned alongside so the derive stays exercised.
+        for (verdict, wire, debug) in [
+            (Verdict::Allow, "\"allow\"", "Allow"),
+            (Verdict::Deny, "\"deny\"", "Deny"),
+            (Verdict::Ask, "\"ask\"", "Ask"),
+            (Verdict::Defer, "\"defer\"", "Defer"),
+        ] {
+            assert_eq!(format!("{verdict:?}"), debug);
+            // `as_str` returns the same token serde emits, minus the JSON quotes.
+            assert_eq!(format!("\"{}\"", verdict.as_str()), wire);
+            assert_eq!(
+                serde_json::to_string(&verdict).expect("verdict serializes"),
+                wire
+            );
+        }
+    }
+
+    #[test]
     fn local_input_maps_synonyms_and_ignores_noise() {
-        assert_eq!(parse_local_input(" Allow ").unwrap().verdict, "allow");
-        assert_eq!(parse_local_input("y").unwrap().verdict, "allow");
-        assert_eq!(parse_local_input("DENY").unwrap().verdict, "deny");
-        assert_eq!(parse_local_input("n").unwrap().verdict, "deny");
+        assert_eq!(
+            parse_local_input(" Allow ").unwrap().verdict,
+            Verdict::Allow
+        );
+        assert_eq!(parse_local_input("y").unwrap().verdict, Verdict::Allow);
+        assert_eq!(parse_local_input("DENY").unwrap().verdict, Verdict::Deny);
+        assert_eq!(parse_local_input("n").unwrap().verdict, Verdict::Deny);
         assert!(parse_local_input("maybe").is_none());
     }
 
