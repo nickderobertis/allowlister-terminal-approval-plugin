@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PROJECT_DIR}/scripts/setup-llmlint.sh\"",
+            "command": "bash \"${CLAUDE_PROJECT_DIR}/scripts/session-setup.sh\"",
             "timeout": 600
           }
         ]
