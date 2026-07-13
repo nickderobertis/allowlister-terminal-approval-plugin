@@ -199,3 +199,6 @@ clean:
 doctor:
     @echo "## toolchain" && rustc --version && cargo --version
     @echo "## tools" && for t in just cargo-nextest cargo-llvm-cov cargo-deny cargo-machete lefthook; do printf '%-16s ' "$t"; command -v "$t" || echo "MISSING"; done
+
+lint-llm-validate:
+    llmlint validate
