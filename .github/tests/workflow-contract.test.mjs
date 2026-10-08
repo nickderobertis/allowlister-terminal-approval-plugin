@@ -53,7 +53,6 @@ function contexts(id, job) {
   return job.strategy.matrix.os.map((os) => name.replaceAll("${{ matrix.os }}", os));
 }
 
-/** [file, id, job] for every job in every workflow. */
 const allJobs = Object.entries(workflows).flatMap(([file, wf]) => Object.entries(wf.jobs ?? {}).map(([id, job]) => [file, id, job]));
 const contractJobs = allJobs.filter(([, id, job]) => contexts(id, job).some((c) => c in CONTRACT));
 

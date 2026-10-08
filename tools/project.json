@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/nx/schemas/project-schema.json",
   "name": "workspace",
-  "//": "Repo-level checks over the whole Cargo workspace and the project graph: lint enforces the module boundaries (check-project-boundaries.mjs against project-boundaries.json) and test is the suite for this directory's scripts (the boundary checker, the Nx wrapper and merge-base helper, and the graph's affected selection driven through real Nx); supply-chain is cargo-deny (advisories, bans, licenses, sources) plus cargo-machete; msrv checks every crate under the declared minimum Rust (tools/msrv.sh). It depends on every Rust crate (tag lang:rust), whose manifests those read; every project.json and Cargo.toml is an input, so any graph edit reruns the boundary check. The coverage gate is the nested coverage project.",
+  "//": "Workspace-wide checks over every Cargo manifest and project definition, so it depends on every Rust crate and takes every project.json and Cargo.toml as an input: any graph edit reruns the boundary check.",
   "projectType": "library",
   "tags": [
     "type:workspace",
