@@ -144,10 +144,11 @@ lint-llm *paths:
 # separate from `check`). BASE defaults to origin/main (fetch it first if your
 # clone lacks it); extra arguments are forwarded to llmlint.
 lint-llm-diff base="origin/main" *args:
-    llmlint --diff --diff-base "{{base}}" {{args}}
+    llmlint --diff --diff-base {{ quote(base) }} {{args}}
 
-# Check every crate against the declared minimum supported Rust version.
-# Requires the MSRV toolchain (`rustup toolchain install 1.88.0`).
+# Check every crate against the declared minimum supported Rust version
+# (`rust-version` in Cargo.toml's [workspace.package]); install that toolchain
+# first (tools/msrv.sh names the command).
 msrv:
     @bash tools/nx run workspace:msrv --output-style=static
 
@@ -174,14 +175,9 @@ release-check:
 build-release target="":
     cargo build --release --locked {{ if target != "" { "--target " + target } else { "" } }}
 
-# Full quality gate. This is THE gate: format check, type-check, lint (clippy and
-# the project boundaries), every test target (unit, the real-terminal e2e, the npm
-# carrier's suite, the tooling and workflow-contract suites), enforced coverage
-# over the unit + e2e runs, docs, the release build, and the supply chain — over
-# the projects this change can reach, or every project with `just check all`
-# (the full sweep: the release-PR run and the release re-gate). `bootstrap` then
-# `check` is what CI runs; nothing here is warnings-only, and any failing target
-# fails the recipe.
+# Full quality gate, over the projects this change can reach or, with `all`, every
+# project (the full sweep). Nothing is warnings-only: any failing target fails the
+# recipe.
 check tier="affected": (nx-tier tier "-t format-check lint typecheck test build doc release-check coverage supply-chain")
 
 # Update the Rust dependencies and Cargo.lock, then re-run the gate as the full
@@ -199,7 +195,7 @@ clean:
 # Noisy environment diagnostics (never part of the quality gate).
 doctor:
     @echo "## toolchain" && rustc --version && cargo --version
-    @echo "## tools" && for t in just node npm cargo-nextest cargo-llvm-cov cargo-deny cargo-machete lefthook; do printf '%-16s ' "$t"; command -v "$t" || echo "MISSING"; done
+    @echo "## tools" && for t in just cargo-nextest cargo-llvm-cov cargo-deny cargo-machete lefthook; do printf '%-16s ' "$t"; command -v "$t" || echo "MISSING"; done
 
 # Fast, deterministic llmlint gate — no model calls, no harness credential: config
 # structure, that every `llmlint: ignore` directive names a real rule, and that

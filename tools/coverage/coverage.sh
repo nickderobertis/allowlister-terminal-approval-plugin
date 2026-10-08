@@ -119,7 +119,6 @@ case "$STEP" in
       fi
       exit 1
     fi
-    # Success stays quiet but for the one total line.
     printf '%s\n' "$out" | grep '^TOTAL '
     ;;
 esac

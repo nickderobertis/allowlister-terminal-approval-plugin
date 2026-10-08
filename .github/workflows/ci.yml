@@ -21,17 +21,10 @@ env:
 
 jobs:
   # The gate. A clean checkout runs `just bootstrap` then `just check` at the
-  # tier .github/scripts/gate-tier.mjs routes the event to (the release model and
-  # this placement are recorded in AGENTS.md "Commits, releases, and merging"):
-  #
-  #   * a pull request from release-plz's release branch runs the FULL SWEEP
-  #     (`just check all`) — the repo batches releases behind that PR, so this is
-  #     the one point the broader tier runs, and a red sweep fails these required
-  #     contexts so auto-merge cannot cut a release past it;
-  #   * every other pull request, and every push to main, runs the AFFECTED tier
-  #     (`just check affected`) against the explicitly derived base the router
-  #     exports as NX_BASE (the merge base with the PR's base branch, or the
-  #     push's previous tip).
+  # tier .github/scripts/gate-tier.mjs routes the event to: `all` on
+  # release-plz's release PR, `affected` (from the base it exports as NX_BASE)
+  # on every other pull request and push to main. Why the sweep sits there is
+  # AGENTS.md "Commits, releases, and merging".
   #
   # Matrix over the unix platforms the binary ships to. The context names
   # (`test (ubuntu-latest)`, ...) are the protected required checks — keep them

@@ -55,6 +55,7 @@ jobs:
       # the full sweep over every project, never the affected tier: a release
       # event has no merge base to scope to.
       - name: Gate (just check all)
+        # llmlint: ignore[no_second_broader_sweep_over_an_already_gated_commit, release_does_not_regate_an_already_swept_commit] a documented standing decision (AGENTS.md "Commits, releases, and merging"): a release can also be published by hand in the GitHub UI, which no release-PR sweep gated, and this event cannot tell the two apart — so every release, whatever cut it, is gated here before an artifact publishes.
         run: just check all
 
   build-binary:

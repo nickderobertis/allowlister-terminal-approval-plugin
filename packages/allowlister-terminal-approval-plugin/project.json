@@ -15,9 +15,9 @@
     "test": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "node --test packages/allowlister-terminal-approval-plugin/test/*.test.mjs"
+        "command": "npm test"
       },
-      "//": "The carrier's platform-resolver suite, the same tests `npm test` (and the install-smoke job) runs."
+      "//": "The root package.json's `test` script \u2014 the one definition of the carrier's suite, which the install-smoke job runs too."
     }
   }
 }

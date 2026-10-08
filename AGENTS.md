@@ -21,8 +21,7 @@ allow/deny; on any other verdict it defers. Shipped two ways:
 ## Stack and composition
 
 Composed from the create-repo skill's references (shape cli, language rust,
-releasing). The original composed plan, `REPO_PLAN.md`, was a pre-graph snapshot
-and is deleted (it remains in git history); the references below are current.
+releasing).
 
 - **Product shape:** cli (a spawn-once allowlister plugin)
 - **Language(s):** rust (the product); JavaScript for the npm carrier and the
