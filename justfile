@@ -90,8 +90,10 @@ fmt tier="affected": (format tier)
 # Check formatting without writing (fails on any diff).
 fmt-check tier="affected": (nx-tier tier "-t format-check")
 
+# llmlint: ignore-block[diagnostics_error_or_absent] every rustc warning already fails the gate: the `lint` target runs clippy with -D warnings over the same crates, --all-targets and --all-features, so a warning this compilation prints is an error one target over; repeating -D warnings via RUSTFLAGS would make cargo rebuild the dependency graph for each flag set.
 # Type-check all targets and features of each crate (a phase of the `check` gate).
 typecheck tier="affected": (nx-tier tier "-t typecheck")
+# llmlint: ignore-end[diagnostics_error_or_absent]
 
 # Lint with every warning treated as an error: clippy per crate, plus the
 # project-graph module boundaries (workspace:lint).
@@ -160,6 +162,7 @@ hooks-install:
 hooks:
     lefthook run pre-commit --all-files
 
+# llmlint: ignore-block[diagnostics_error_or_absent] every rustc warning already fails the gate: the `lint` target runs clippy with -D warnings over the same crates, --all-targets and --all-features, so a warning this compilation prints is an error one target over; repeating -D warnings via RUSTFLAGS would make cargo rebuild the dependency graph for each flag set.
 # Debug build of the plugin (terminal-approval:build).
 build:
     @bash tools/nx run terminal-approval:build --output-style=static
@@ -168,6 +171,7 @@ build:
 # target the gate runs.
 release-check:
     @bash tools/nx run terminal-approval:release-check --output-style=static
+# llmlint: ignore-end[diagnostics_error_or_absent]
 
 # Optimized release build (the shipped profile). With no argument, builds for the
 # host (the dev gate and install-smoke); with a target triple, cross-compiles for
