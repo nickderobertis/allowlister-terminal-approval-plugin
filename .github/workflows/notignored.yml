@@ -31,4 +31,5 @@ jobs:
           fetch-depth: 0
 
       # The floating major tag: picks up fixes as each 0.x release publishes.
+      # llmlint: ignore[changed_behavior_has_e2e] posting the comment is the third-party action's behavior and needs a hosted pull_request run with a write token, which no local test can stand in for; this repo owns only the workflow's wiring (trigger, permissions, fork guard, its own job outside the required contexts), which .github/tests/workflow-contract.test.mjs pins.
       - uses: nickderobertis/notignored@v0

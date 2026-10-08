@@ -49,11 +49,8 @@ jobs:
           tool: just,cargo-nextest,cargo-llvm-cov,cargo-deny,cargo-machete
       - name: Bootstrap
         run: just bootstrap
-      # Gate the release on the SAME full gate developers and CI run, not a
-      # hand-picked subset — so the release can never pass on a check `just check`
-      # would fail (fmt, coverage, deps/security, docs, release build). `all` is
-      # the full sweep over every project, never the affected tier: a release
-      # event has no merge base to scope to.
+      # The same gate recipe CI runs, as the full sweep: a release event has no
+      # merge base to scope an affected run to.
       - name: Gate (just check all)
         # llmlint: ignore[no_second_broader_sweep_over_an_already_gated_commit, release_does_not_regate_an_already_swept_commit] a documented standing decision (AGENTS.md "Commits, releases, and merging"): a release can also be published by hand in the GitHub UI, which no release-PR sweep gated, and this event cannot tell the two apart — so every release, whatever cut it, is gated here before an artifact publishes.
         run: just check all

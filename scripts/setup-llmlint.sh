@@ -35,9 +35,11 @@ set -uo pipefail
 # Version floor, as a PyPI constraint (the `llmlint-cli` package version tracks the
 # wrapped binary version). `uv tool install --upgrade` installs the newest release
 # satisfying it; oneharness comes along transitively at a compatible version.
-# llmlint >= 0.3.7 finds `oneharness` beside its own executable (so a lone
-# `uv tool install llmlint-cli` works) and gives the whole-tree default the composed
-# llmlint.yml relies on (it omits `files.include`).
+# The floor is the create-repo skill's minimum, which carries what this repo
+# relies on: `oneharness` found beside llmlint's own executable (so a lone
+# `uv tool install llmlint-cli` works), the whole-tree default (llmlint.yml omits
+# `files.include`), native `--diff`/`--diff-base` scoping, and `validate`.
+# llmlint: ignore[changed_behavior_has_e2e] a pinned version constant, not new behavior: the install path that reads it (`uv tool install --upgrade "llmlint-cli>=$LLMLINT_MIN"`) is unchanged, and the llmlint CI job runs it on every pull request before validating and linting with the installed version.
 readonly LLMLINT_MIN="0.3.23"
 readonly BIN_DIR="$HOME/.local/bin"
 

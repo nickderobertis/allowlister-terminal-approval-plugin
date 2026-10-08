@@ -20,11 +20,8 @@ env:
   GITHUB_TOKEN: ${{ github.token }}
 
 jobs:
-  # The gate. A clean checkout runs `just bootstrap` then `just check` at the
-  # tier .github/scripts/gate-tier.mjs routes the event to: `all` on
-  # release-plz's release PR, `affected` (from the base it exports as NX_BASE)
-  # on every other pull request and push to main. Why the sweep sits there is
-  # AGENTS.md "Commits, releases, and merging".
+  # The gate: `just bootstrap` then `just check` at the tier
+  # .github/scripts/gate-tier.mjs routes the event to.
   #
   # Matrix over the unix platforms the binary ships to. The context names
   # (`test (ubuntu-latest)`, ...) are the protected required checks — keep them
