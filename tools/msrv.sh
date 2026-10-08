@@ -20,8 +20,9 @@ printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+(\.[0-9]+)?$' \
   || { echo "msrv: Cargo.toml's [workspace.package] states no plain rust-version (got '$version'); set it there as a quoted version, e.g. rust-version = \"1.88\", then re-run." >&2; exit 1; }
 case "$version" in *.*.*) ;; *) version="$version.0" ;; esac
 
-if ! rustup run "$version" rustc --version >/dev/null 2>&1; then
-  echo "msrv: the $version toolchain is not installed; run 'rustup toolchain install $version', then re-run." >&2
+if ! out="$(rustup run "$version" rustc --version 2>&1)"; then
+  printf '%s\n' "$out" >&2
+  echo "msrv: 'rustup run $version rustc --version' failed (above); if the toolchain is missing, run 'rustup toolchain install $version', then re-run." >&2
   exit 1
 fi
 exec cargo "+$version" check --locked --workspace --all-targets --all-features
