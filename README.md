@@ -109,8 +109,9 @@ other consumer) can reuse it rather than re-implement it:
 ## Development
 
 ```console
-just bootstrap   # deps + cargo subcommands + git hooks (idempotent)
-just check       # the full gate: fmt, lint, unit + real-terminal e2e, coverage, deps, docs
+just bootstrap   # deps + cargo subcommands + Nx + git hooks (idempotent)
+just check       # the gate over what this change reaches: fmt, lint, unit + real-terminal e2e, coverage, deps, docs
+just check all   # the same gate over every project (the full sweep)
 just test-e2e    # drive the compiled binary, incl. the /dev/tty prompt under a PTY
 ```
 
