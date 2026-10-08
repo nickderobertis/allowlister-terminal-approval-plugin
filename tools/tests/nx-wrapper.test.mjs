@@ -87,7 +87,7 @@ test("a lock or manifest newer than the install triggers a reinstall", () => {
     const out = nx();
     assert.equal(out.status, 0, out.stderr);
     assert.deepEqual(out.calls, [], `${file} still older than the stamp`);
-    age(join(root, file), 0); // touched now: newer than the stamp
+    age(join(root, file), 0);
     const refreshed = nx();
     assert.equal(refreshed.status, 0, refreshed.stderr);
     assert.deepEqual(refreshed.calls, ["ci --no-audit --no-fund"], `${file} moved`);
