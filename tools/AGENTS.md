@@ -10,6 +10,7 @@
   target's `{workspaceRoot}` inputs.
 - `coverage/coverage.sh` owns the 95% floor and its exclusions; each Rust
   project's `test` target writes profiles through it, and `coverage:coverage`
-  merges them. Never lower the floor to pass.
+  merges them; `coverage:test` drives the script against a stand-in cargo. Never
+  lower the floor to pass.
 - Scripts use Node built-ins and bash only (no npm imports), so they run without
   the Nx install; tests drive them on scratch copies of the real tree.

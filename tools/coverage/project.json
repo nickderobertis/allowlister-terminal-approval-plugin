@@ -33,6 +33,12 @@
       "outputs": [
         "{workspaceRoot}/target/llvm-cov-target"
       ]
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node --test tools/coverage/tests/*.test.mjs"
+      }
     }
   }
 }
