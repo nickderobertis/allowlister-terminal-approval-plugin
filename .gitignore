@@ -3,6 +3,10 @@
 
 # npm
 node_modules/
+
+# Nx: local task cache and workspace data (cache is for speed only; CI and a
+# clean clone rebuild without it).
+/.nx/
 # Release/staging artifacts: named native binaries the publish and install-smoke
 # workflows build before staging them into the platform packages. Ephemeral.
 /dist/

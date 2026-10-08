@@ -20,15 +20,24 @@ allow/deny; on any other verdict it defers. Shipped two ways:
 
 ## Stack and composition
 
-Built from the create-repo references (`compose_repo_plan.py --shape cli
---language rust --releasing`; see `REPO_PLAN.md`).
+Composed from the create-repo skill's references (shape cli, language rust,
+releasing).
 
 - **Product shape:** cli (a spawn-once allowlister plugin)
-- **Language(s):** rust
-- **References composed:** base.md, shapes/cli.md, languages/rust.md, intersections/rust-cli.md, ci.md, releasing.md, llmlint.md
+- **Language(s):** rust (the product); JavaScript for the npm carrier and the
+  Node-only tooling scripts
+- **References composed:** base.md, project-graph.md, shapes/cli.md, languages/rust.md, intersections/rust-cli.md, ci.md, releasing.md, llmlint.md
 - **Distribution:** crates.io (library) + npm carrier with per-platform native
   binaries (the plugin) + GitHub Release archives. Mirrors allowlister's
   release-plz/`.cargo` setup and allowlister-remote's npm-carrier pattern.
+- **Project graph (Nx; Cargo + one npm lock):** `terminal-approval` (the root
+  crate, `type:contract` — its library is allowlister-remote's prompt contract),
+  `terminal-approval-e2e` (`tests/e2e`, the binary-driving suites),
+  `npm-carrier` (`packages/allowlister-terminal-approval-plugin`), `workspace`
+  (`tools/`: boundaries, supply chain, MSRV), `coverage` (`tools/coverage/`, the
+  merged 95% floor), `ci-workflows` (`.github/`). Allowed edges are in
+  `tools/project-boundaries.json`; `.nxignore` keeps agent notes and agent/hook
+  settings out of the graph.
 - **Excluded, and why:**
   - *Windows target* — the terminal experience *is* `/dev/tty`; the crate still
     compiles on Windows (so remote's Windows build is unaffected) but the binary
@@ -39,16 +48,24 @@ Built from the create-repo references (`compose_repo_plan.py --shape cli
 
 ## Command surface
 
-Use the `just` recipes; do not hand-roll equivalents.
+Use the `just` recipes; do not hand-roll equivalents. The gate recipes delegate
+to Nx (`tools/nx`) at a tier: the default **affected** tier runs the projects a
+change can reach from an explicit base (`NX_BASE`, else the merge base with
+`origin/main`); `all` is the **full sweep** over every project.
 
-- `just bootstrap` — provision from a clean clone (deps + cargo subcommands + hooks).
-- `just check` — the full gate (format, type-check, lint, unit + e2e, coverage,
-  deps/security, docs, release build). Must pass before any commit or PR.
-- `just test` / `just test-e2e` / `just lint` / `just format` — individual steps.
-- `just upgrade` — update deps then re-run `just check`.
+- `just bootstrap` — provision from a clean clone (deps + cargo subcommands +
+  Nx/npm install + hooks).
+- `just check` / `just check all` — the gate (format, type-check, lint +
+  project boundaries, unit + e2e + carrier + tooling tests, merged coverage,
+  docs, release build, supply chain), affected tier or full sweep. Must pass
+  before any commit or PR.
+- `just test` / `just test-e2e` / `just test-cov` / `just lint` / `just typecheck`
+  / `just format` — individual targets, each taking the same `all` flag.
+- `just upgrade` — `cargo update`, then the full sweep.
 - `just lint-llm` / `just lint-llm-diff` — the LLM-judge tier (llmlint), separate
   from `check` and non-deterministic; config in `llmlint.yml`, `just setup-llmlint`
-  installs it. `lint-llm-diff` is the blocking, diff-scoped PR check.
+  installs it. `lint-llm-diff` is the blocking, diff-scoped PR check;
+  `just lint-llm-validate` is its model-free pre-flight (CI and pre-push).
 
 ## Commits, releases, and merging
 
@@ -71,12 +88,24 @@ Use the `just` recipes; do not hand-roll equivalents.
   binaries, cuts the GitHub Release with checksums, publishes to crates.io
   (gated on `PUBLISH_TO_CRATES_IO`), and publishes the npm carrier. No manual
   version edits, tags, or deploys.
+- **Release model: batched, so the full sweep runs at release-prep.** The
+  release-plz PR accumulates every merge since the last release, so the commit
+  that ships is not one any merge job swept. The `test (<os>)` jobs therefore run
+  `just check all` on a pull request from release-plz's branch (prefix
+  `pr_branch_prefix` in `release-plz.toml`, routed by
+  `.github/scripts/gate-tier.mjs`) — a red sweep fails those required contexts,
+  so auto-merge cannot cut the release — and the affected tier on every other
+  pull request and on pushes to main. `publish.yml` re-runs `just check all` on
+  `release: published` on purpose, so a manual release is gated too.
 
 ## Invariants (non-negotiable)
 
-- Strict gate, no warnings-only mode. Coverage ≥ 95% (lines/functions/regions).
+- Strict gate, no warnings-only mode. Coverage ≥ 95% (lines/functions/regions),
+  merged across the unit and e2e runs over the crate's sources (`src/main.rs`
+  and tests excluded) — see `tools/coverage/coverage.sh`.
 - **Tests drive the real binary across real boundaries** — never mock the layer
-  under test. The interactive prompt is exercised under a real PTY (`tests/terminal.rs`).
+  under test. The interactive prompt is exercised under a real PTY
+  (`tests/e2e/terminal.rs`).
 - Validate external input (the stdin payload) at the boundary.
 - Never commit secrets; keep every grant (agent allowlist, CI token) least-privilege.
 

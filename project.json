@@ -1,0 +1,80 @@
+{
+  "$schema": "./node_modules/nx/schemas/project-schema.json",
+  "name": "terminal-approval",
+  "//": "Tagged type:contract: its library surface (local_prompt, PromptLabels) is allowlister-remote's prompt contract, so the boundary rules keep it from depending on any project in this repo. As the root project it owns every file no nested project claims; .nxignore keeps agent notes and settings out of the graph, and its cache inputs are narrowed to what the crate compiles from.",
+  "projectType": "application",
+  "tags": [
+    "type:contract",
+    "scope:plugin",
+    "lang:rust",
+    "coverage:profiles"
+  ],
+  "namedInputs": {
+    "default": [
+      "{projectRoot}/src/**/*",
+      "sharedGlobals"
+    ]
+  },
+  "targets": {
+    "format": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cargo fmt -p allowlister-terminal-approval-plugin"
+      }
+    },
+    "format-check": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cargo fmt -p allowlister-terminal-approval-plugin -- --check"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cargo clippy -p allowlister-terminal-approval-plugin --locked --all-targets --all-features -- -D warnings"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cargo check -p allowlister-terminal-approval-plugin --locked --all-targets --all-features"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cargo build -p allowlister-terminal-approval-plugin --locked"
+      },
+      "//": "target/debug/allowlister-terminal-approval-plugin: what terminal-approval-e2e:test depends on, so a broken binary build fails here, by name, before any journey runs."
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "dependsOn": [
+        "coverage:coverage-clear"
+      ],
+      "options": {
+        "command": "bash tools/coverage/coverage.sh test allowlister-terminal-approval-plugin"
+      },
+      "outputs": [
+        "{workspaceRoot}/target/llvm-cov-target"
+      ],
+      "//": "The lib + bin unit tests under cargo-llvm-cov --no-report: the raw profiles land in target/llvm-cov-target for coverage:coverage to merge with the e2e crate's."
+    },
+    "doc": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cargo doc -p allowlister-terminal-approval-plugin --locked --no-deps --all-features",
+        "env": {
+          "RUSTDOCFLAGS": "-D warnings"
+        }
+      }
+    },
+    "release-check": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cargo build -p allowlister-terminal-approval-plugin --release --locked"
+      },
+      "//": "The optimized release build (the shipped profile) for the host — the artifact check the gate ran before the graph; publish.yml's per-target builds go through `just build-release <target>`."
+    }
+  }
+}

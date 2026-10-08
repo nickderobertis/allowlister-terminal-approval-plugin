@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "npm distribution workspace for the allowlister terminal approval plugin (the product is the Rust crate).",
+  "description": "npm workspace for the allowlister terminal approval plugin: the npm carrier packages (the product itself is the Rust crate) and the Nx toolchain that runs the repository's project graph. Cargo owns the Rust dependencies; this one lock pins the carrier workspace, Nx and the tooling tests' YAML parser.",
   "workspaces": [
     "packages/allowlister-terminal-approval-plugin"
   ],
@@ -12,5 +12,9 @@
     "release:set-npm-version": "node scripts/set-npm-package-version.mjs",
     "release:stage-npm": "node scripts/stage-npm-package.mjs",
     "release:smoke-npm": "bash scripts/smoke-npm-package.sh"
+  },
+  "devDependencies": {
+    "nx": "23.3.0",
+    "yaml": "2.9.1"
   }
 }

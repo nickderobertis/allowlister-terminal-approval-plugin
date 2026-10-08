@@ -1,0 +1,21 @@
+{
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "name": "ci-workflows",
+  "//": "Depends on terminal-approval because that root project owns the justfile and release-plz.toml these tests read, and Nx selects affected projects by file ownership — the edge is what reruns this suite when they change.",
+  "projectType": "library",
+  "tags": [
+    "type:tooling",
+    "scope:ci"
+  ],
+  "implicitDependencies": [
+    "terminal-approval"
+  ],
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node --test .github/tests/*.test.mjs"
+      }
+    }
+  }
+}

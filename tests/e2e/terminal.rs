@@ -16,6 +16,7 @@ use std::fs::File;
 use std::io::{self, Read, Write};
 use std::os::fd::AsRawFd;
 use std::os::unix::process::CommandExt;
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -24,8 +25,12 @@ use std::time::{Duration, Instant};
 use nix::pty::openpty;
 use serde_json::Value;
 
-fn plugin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_allowlister-terminal-approval-plugin")
+/// The compiled plugin, found beside this test executable (`target/debug`, or the
+/// instrumented copy under `target/llvm-cov-target` in a coverage run). It is
+/// another crate's binary, so Cargo sets no `CARGO_BIN_EXE_*` for it here; the
+/// `terminal-approval-e2e:test` target builds it first.
+fn plugin_path() -> PathBuf {
+    assert_cmd::cargo::cargo_bin("allowlister-terminal-approval-plugin")
 }
 
 /// Drive the plugin against a real controlling terminal: deliver `payload` on
@@ -68,7 +73,8 @@ fn run_interactive(payload: &str, keystrokes: &str) -> (Value, String) {
         stdin.write_all(payload.as_bytes()).expect("write payload");
     }
 
-    // Drain the terminal in the background into a shared transcript.
+    // Read the terminal continuously: a PTY nobody reads fills its buffer and
+    // blocks the child's writes, and the transcript is what the assertions read.
     let master = File::from(pty.master);
     let mut master_reader = master.try_clone().expect("clone PTY master");
     let transcript = Arc::new(Mutex::new(Vec::<u8>::new()));
@@ -86,7 +92,6 @@ fn run_interactive(payload: &str, keystrokes: &str) -> (Value, String) {
         }
     });
 
-    // Wait for the allow/deny cue before answering.
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
         let so_far = String::from_utf8_lossy(&transcript.lock().unwrap()).into_owned();
@@ -169,7 +174,6 @@ fn shell_ask_surfaces_the_flagged_fragment_and_returns_the_typed_allow() {
     assert_eq!(response["verdict"], "allow");
     assert_eq!(response["reason"], "approved at local terminal");
 
-    // The operator saw the flagged fragment, its rule, the full command, and cwd.
     assert!(transcript.contains("Needs your attention"), "{transcript}");
     assert!(
         transcript.contains("gh pr merge 42 --squash"),
@@ -189,7 +193,6 @@ fn tool_ask_shows_the_tool_input_json_and_returns_the_typed_deny() {
     assert_eq!(response["verdict"], "deny");
     assert_eq!(response["reason"], "denied at local terminal");
 
-    // A tool call names the tool and renders its verbatim arguments as JSON.
     assert!(
         transcript.contains("mcp__github__create_issue"),
         "{transcript}"

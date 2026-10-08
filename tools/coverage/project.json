@@ -1,0 +1,44 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "coverage",
+  "//": "The unit and e2e crates each write raw profiles; the floor is enforced once over their union, so the e2e journeys count toward the lines of the crate they drive. The coverage:profiles tag is the one list of profile-producing crates.",
+  "projectType": "library",
+  "tags": [
+    "type:workspace",
+    "scope:repo"
+  ],
+  "implicitDependencies": [
+    "tag:coverage:profiles"
+  ],
+  "targets": {
+    "coverage-clear": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bash tools/coverage/coverage.sh clear"
+      }
+    },
+    "coverage": {
+      "executor": "nx:run-commands",
+      "dependsOn": [
+        {
+          "projects": [
+            "tag:coverage:profiles"
+          ],
+          "target": "test"
+        }
+      ],
+      "options": {
+        "command": "bash tools/coverage/coverage.sh report"
+      },
+      "outputs": [
+        "{workspaceRoot}/target/llvm-cov-target"
+      ]
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node --test tools/coverage/tests/*.test.mjs"
+      }
+    }
+  }
+}

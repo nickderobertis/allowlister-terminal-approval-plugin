@@ -1,0 +1,23 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "npm-carrier",
+  "//": "Sits beside the carrier's package.json because that npm workspace member is also inferred by Nx as a project; the two merge here (including an inferred `postinstall` target no recipe names). Depends on terminal-approval because it distributes that crate's binary, and because that root project owns the release scripts and per-platform packages the carrier's release path reads outside this directory.",
+  "projectType": "library",
+  "tags": [
+    "type:app",
+    "scope:distribution",
+    "lang:js"
+  ],
+  "implicitDependencies": [
+    "terminal-approval"
+  ],
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npm test"
+      },
+      "//": "The root package.json's `test` script — the one definition of the carrier's suite, which the install-smoke job runs too."
+    }
+  }
+}

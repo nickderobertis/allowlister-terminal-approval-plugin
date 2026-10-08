@@ -1,0 +1,35 @@
+# Posts one sticky pull-request comment listing the lint and type-check
+# suppressions the change adds (`#[allow(...)]`, `llmlint: ignore`, ...), so a
+# reviewer sees every bypass without reading the diff line by line. A review
+# artifact, not a gate: no required context depends on it, and it skips fork
+# pull requests, whose read-only token cannot write the comment.
+
+name: notignored
+
+on:
+  pull_request:
+
+# Least privilege: read the tree, write the one sticky comment, nothing else.
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: notignored-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  suppressions:
+    # A fork's pull request is granted a read-only token, so the comment upsert
+    # would fail on something the contributor has no way to fix.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The scan diffs against the base branch, which a shallow checkout omits.
+          fetch-depth: 0
+
+      # The floating major tag: picks up fixes as each 0.x release publishes.
+      # llmlint: ignore[changed_behavior_has_e2e] posting the comment is the third-party action's behavior and needs a hosted pull_request run with a write token, which no local test can stand in for; this repo owns only the workflow's wiring (trigger, permissions, fork guard, its own job outside the required contexts), which .github/tests/workflow-contract.test.mjs pins.
+      - uses: nickderobertis/notignored@v0

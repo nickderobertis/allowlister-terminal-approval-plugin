@@ -1,0 +1,57 @@
+{
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "name": "workspace",
+  "//": "Workspace-wide checks over every Cargo manifest and project definition, so it depends on every Rust crate and takes every project.json and Cargo.toml as an input: any graph edit reruns the boundary check.",
+  "projectType": "library",
+  "tags": [
+    "type:workspace",
+    "scope:repo"
+  ],
+  "implicitDependencies": [
+    "tag:lang:rust"
+  ],
+  "namedInputs": {
+    "default": [
+      "{projectRoot}/**/*",
+      "{workspaceRoot}/**/project.json",
+      "{workspaceRoot}/**/Cargo.toml",
+      "{workspaceRoot}/deny.toml",
+      "rust",
+      "sharedGlobals"
+    ]
+  },
+  "targets": {
+    "lint": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "node tools/check-project-boundaries.mjs"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node --test tools/tests/*.test.mjs"
+      }
+    },
+    "supply-chain": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "cargo deny --locked check bans licenses sources",
+          "cargo deny --locked check advisories",
+          "cargo machete"
+        ],
+        "parallel": false
+      },
+      "//": "Uncached: advisories change upstream without any change here."
+    },
+    "msrv": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bash tools/msrv.sh"
+      },
+      "//": "The toolchain comes from Cargo.toml's [workspace.package] rust-version (tools/msrv.sh) and needs installing first; like before the graph, not part of the gate's target list."
+    }
+  }
+}
