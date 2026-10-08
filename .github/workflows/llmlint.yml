@@ -46,6 +46,12 @@ jobs:
       # preinstalled on the runner (locally it always is), so provision it.
       - name: Install Claude Code CLI (llmlint judge harness)
         run: npm install -g @anthropic-ai/claude-code
+      # Deterministic, model-free gate first: config structure, that every
+      # `llmlint: ignore` directive names a real rule, and that any edited
+      # versioned fragment bumped its `version:`. Needs no harness credential, so
+      # it fails fast on a config slip before the paid model step runs.
+      - name: Validate llmlint config (no model)
+        run: just lint-llm-validate --diff-base origin/main
       - name: Lint changed files
         env:
           # Harness credential (Claude Code). Prefer a long-lived subscription

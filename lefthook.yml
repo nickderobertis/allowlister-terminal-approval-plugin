@@ -26,3 +26,15 @@ pre-push:
       run: cargo nextest run --locked --status-level fail -E 'not kind(test)'
     deny:
       run: cargo deny --locked check
+    llmlint-validate:
+      # The deterministic, model-free llmlint gate (config, ignore directives,
+      # fragment version bumps). Skips without blocking where llmlint is not
+      # installed (`just setup-llmlint` installs it); CI runs it regardless.
+      run: |
+        if ! command -v llmlint >/dev/null 2>&1; then
+          echo "llmlint not installed; skipping llmlint validate (run 'just setup-llmlint')"
+        elif git rev-parse --verify --quiet origin/main >/dev/null; then
+          llmlint validate --diff-base origin/main
+        else
+          llmlint validate
+        fi

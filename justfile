@@ -136,10 +136,14 @@ setup-llmlint:
 lint-llm *paths:
     llmlint {{paths}}
 
-# Diff-scoped LLM-judge: only the lines this branch changed since main. This is
-# the blocking PR check (its own CI workflow, separate from `check`).
-lint-llm-diff *args:
-    @bash scripts/lint-llm-diff.sh {{args}}
+# Diff-scoped LLM-judge, using llmlint's native diff scoping: a plain
+# `--diff-base <ref>` takes the fork-point (merge-base) range, so only the files
+# this branch changed since it forked from BASE are linted, and the judge reviews
+# only their changed lines. This is the blocking PR check (its own CI workflow,
+# separate from `check`). BASE defaults to origin/main (fetch it first if your
+# clone lacks it); extra arguments are forwarded to llmlint.
+lint-llm-diff base="origin/main" *args:
+    llmlint --diff --diff-base "{{base}}" {{args}}
 
 # Check the crate against its declared minimum supported Rust version.
 # Requires the MSRV toolchain (`rustup toolchain install 1.88.0`).
@@ -200,5 +204,9 @@ doctor:
     @echo "## toolchain" && rustc --version && cargo --version
     @echo "## tools" && for t in just cargo-nextest cargo-llvm-cov cargo-deny cargo-machete lefthook; do printf '%-16s ' "$t"; command -v "$t" || echo "MISSING"; done
 
-lint-llm-validate:
-    llmlint validate
+# Fast, deterministic llmlint gate — no model calls, no harness credential: config
+# structure, that every `llmlint: ignore` directive names a real rule, and that
+# edited versioned fragments bumped their `version:`. Arguments are forwarded
+# (CI passes `--diff-base origin/main` to scope the version-bump check).
+lint-llm-validate *args:
+    llmlint validate {{args}}
