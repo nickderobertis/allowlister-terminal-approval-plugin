@@ -17,7 +17,7 @@ version="$(awk '
   in_table && /^rust-version[ \t]*=/ { gsub(/.*=[ \t]*"|".*/, ""); print; exit }
 ' Cargo.toml)"
 printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+(\.[0-9]+)?$' \
-  || { echo "msrv: Cargo.toml's [workspace.package] states no plain rust-version (got '$version')." >&2; exit 1; }
+  || { echo "msrv: Cargo.toml's [workspace.package] states no plain rust-version (got '$version'); set it there as a quoted version, e.g. rust-version = \"1.88\", then re-run." >&2; exit 1; }
 case "$version" in *.*.*) ;; *) version="$version.0" ;; esac
 
 if ! rustup run "$version" rustc --version >/dev/null 2>&1; then

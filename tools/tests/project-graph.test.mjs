@@ -1,10 +1,11 @@
 // The project graph through real Nx and the real justfile, in a scratch copy of
 // this tree with its own git history: which projects a change selects (the
-// affected tier), the order the e2e suite and the coverage aggregate run in, and
-// the npm carrier's suite running as a graph target in both tiers.
+// affected tier), the order the e2e suite and the coverage aggregate run in, the
+// npm carrier's suite running as a graph target in both tiers, and which changes
+// invalidate a cached check.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { appendFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -124,4 +125,48 @@ test("`just test` on a carrier-only change runs the carrier's suite as its graph
   const red = justTest();
   assert.notEqual(red.status, 0, "a failing carrier test fails `just test`");
   assert.match(red.stdout + red.stderr, /induced failure/);
+});
+
+test("a cached check replays until one of its declared inputs changes; uncached targets always run", () => {
+  // A stand-in cargo records each invocation and succeeds, so the real Nx cache
+  // decides — from nx.json's and the project's declared inputs — whether the
+  // target's command runs at all.
+  const bin = mkdtempSync(join(tmpdir(), "cargo-stand-in-"));
+  const record = join(bin, "calls");
+  writeFileSync(join(bin, "cargo"), `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> ${JSON.stringify(record)}\n`);
+  chmodSync(join(bin, "cargo"), 0o755);
+  const ran = (target, extraEnv = {}) => {
+    rmSync(record, { force: true });
+    const out = spawnSync("node_modules/.bin/nx", ["run", target], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { ...env, PATH: `${bin}:${env.PATH}`, ...extraEnv },
+    });
+    assert.equal(out.status, 0, out.stderr + out.stdout);
+    return existsSync(record) && readFileSync(record, "utf8").includes(" -p ");
+  };
+  try {
+    git(dir, "reset", "-q", "--hard", base);
+    const lint = "terminal-approval-e2e:lint";
+    assert.equal(ran(lint), true, "first run executes");
+    assert.equal(ran(lint), false, "unchanged inputs replay from cache");
+    const cases = [
+      ["the crate it compiles against changes (^default)", () => appendFileSync(join(dir, "src/prompt.rs"), "\n"), true],
+      ["its own sources change", () => appendFileSync(join(dir, "tests/e2e/cli.rs"), "\n"), true],
+      ["Cargo.lock changes (the rust input)", () => appendFileSync(join(dir, "Cargo.lock"), "\n"), true],
+      ["a README edit (not an input)", () => appendFileSync(join(dir, "README.md"), "\n"), false],
+      ["agent notes change (outside the graph)", () => appendFileSync(join(dir, "AGENTS.md"), "\n"), false],
+    ];
+    for (const [what, change, reruns] of cases) {
+      change();
+      assert.equal(ran(lint), reruns, `${lint} ${reruns ? "reruns" : "stays cached"} when ${what}`);
+    }
+    assert.equal(ran(lint, { RUSTFLAGS: "-Dwarnings" }), true, "a RUSTFLAGS change invalidates it");
+    const build = "terminal-approval:build";
+    assert.equal(ran(build), true);
+    assert.equal(ran(build), true, "an uncached target never replays");
+  } finally {
+    rmSync(bin, { recursive: true, force: true });
+    git(dir, "checkout", "-q", "--", ".");
+  }
 });

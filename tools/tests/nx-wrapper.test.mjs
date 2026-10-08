@@ -29,7 +29,7 @@ before(() => {
 printf '%s\\n' "$*" >> "$NPM_RECORD"
 if [ -n "\${NPM_FAIL:-}" ]; then echo "npm ERR! simulated install failure" >&2; exit 1; fi
 mkdir -p node_modules/.bin
-printf '#!/usr/bin/env bash\\necho "nx $*"\\n' > node_modules/.bin/nx
+printf '#!/usr/bin/env bash\\necho "nx $*"\\necho "env daemon=$NX_DAEMON cloud=$NX_NO_CLOUD tui=$NX_TUI" >&2\\n' > node_modules/.bin/nx
 chmod +x node_modules/.bin/nx
 `,
   );
@@ -67,6 +67,8 @@ test("the first run installs from the lock, then runs Nx with the given argument
   assert.equal(out.status, 0, out.stderr);
   assert.deepEqual(out.calls, ["ci --no-audit --no-fund"]);
   assert.equal(out.stdout, "nx show projects\n");
+  // One foreground process: no daemon, no cloud, no interactive TUI.
+  assert.match(out.stderr, /env daemon=false cloud=true tui=false/);
   assert.ok(existsSync(stamp()));
 });
 
@@ -102,4 +104,26 @@ test("without node or npm on PATH it names the missing toolchain", () => {
   const out = spawnSync(which("bash"), [join(root, "tools/nx"), "--version"], { encoding: "utf8", env: { PATH: bare } });
   assert.equal(out.status, 1);
   assert.match(out.stderr, /node\/npm are not on PATH/);
+});
+
+test("a missing Nx executable or install stamp is repaired by reinstalling", () => {
+  for (const missing of ["node_modules/.bin/nx", "node_modules/.npm-ci-stamp"]) {
+    rmSync(join(root, missing));
+    const out = nx();
+    assert.equal(out.status, 0, out.stderr);
+    assert.deepEqual(out.calls, ["ci --no-audit --no-fund"], `${missing} removed`);
+    assert.ok(existsSync(join(root, "node_modules/.bin/nx")) && existsSync(stamp()));
+  }
+});
+
+test("a failed refresh of an existing install fails, and is retried on the next run", () => {
+  age(stamp(), 30);
+  age(join(root, "package-lock.json"), 0);
+  const failed = nx({ NPM_FAIL: "1" });
+  assert.equal(failed.status, 1);
+  assert.match(failed.stderr, /nx: 'npm ci' failed \(above\)/);
+  assert.equal(failed.stdout, "", "Nx does not run on a stale install");
+  const retried = nx();
+  assert.equal(retried.status, 0, retried.stderr);
+  assert.deepEqual(retried.calls, ["ci --no-audit --no-fund"], "the stale stamp makes the next run reinstall");
 });
