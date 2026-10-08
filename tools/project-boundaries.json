@@ -1,0 +1,42 @@
+{
+  "//": "Module-boundary rules for the project graph, in Nx's depConstraints shape: a project tagged sourceTag may depend (a Cargo path dependency of any kind, or an Nx implicitDependency) only on projects carrying one of onlyDependOnTags. Enforced by tools/check-project-boundaries.mjs (workspace:lint). The library contract (allowlister-remote's prompt surface) depends on nothing in this repo but other contracts; apps, the e2e suite and the CI tooling may depend on the contract (the root project, which also owns the root files they read); nothing but the repo-level checks (type:workspace, e.g. the coverage aggregate) may depend on the e2e suite.",
+  "depConstraints": [
+    {
+      "sourceTag": "type:contract",
+      "onlyDependOnTags": [
+        "type:contract"
+      ]
+    },
+    {
+      "sourceTag": "type:app",
+      "onlyDependOnTags": [
+        "type:app",
+        "type:contract"
+      ]
+    },
+    {
+      "sourceTag": "type:e2e",
+      "onlyDependOnTags": [
+        "type:app",
+        "type:contract"
+      ]
+    },
+    {
+      "sourceTag": "type:tooling",
+      "onlyDependOnTags": [
+        "type:tooling",
+        "type:contract"
+      ]
+    },
+    {
+      "sourceTag": "type:workspace",
+      "onlyDependOnTags": [
+        "type:app",
+        "type:contract",
+        "type:e2e",
+        "type:tooling",
+        "type:workspace"
+      ]
+    }
+  ]
+}

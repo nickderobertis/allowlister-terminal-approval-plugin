@@ -1,0 +1,23 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "npm-carrier",
+  "//": "The npm carrier package (its JS launcher, postinstall and platform resolver, with their node:test suite). This project.json sits beside the carrier's package.json because that package is an npm workspace member, which Nx infers as a project of its own; the two merge here (Nx also infers a `postinstall` target from its scripts, which no gate recipe names). It depends on terminal-approval because it distributes that crate's binary \u2014 and because terminal-approval, as the root project, owns the files the carrier's release path reads outside this directory: the per-platform binary packages beside it and scripts/{stage-npm-package,set-npm-package-version}.mjs and scripts/smoke-npm-package.sh. Nx selects affected projects by file ownership, not inputs, so this edge is what reruns the carrier's suite when those change. A change inside this directory reaches only this project.",
+  "projectType": "library",
+  "tags": [
+    "type:app",
+    "scope:distribution",
+    "lang:js"
+  ],
+  "implicitDependencies": [
+    "terminal-approval"
+  ],
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node --test packages/allowlister-terminal-approval-plugin/test/*.test.mjs"
+      },
+      "//": "The carrier's platform-resolver suite, the same tests `npm test` (and the install-smoke job) runs."
+    }
+  }
+}

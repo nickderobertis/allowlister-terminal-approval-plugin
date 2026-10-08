@@ -1,0 +1,35 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "terminal-approval-e2e",
+  "//": "The binary-driving end-to-end suite: spawns the compiled plugin with a JSON payload on stdin (cli.rs) and drives the real /dev/tty prompt under a PTY (terminal.rs, unix-only). It has no Cargo dependency on the plugin crate (it drives the executable, never the library), so the edge is declared here as an implicit dependency. Nothing depends on this project except the repo-level coverage aggregate.",
+  "projectType": "application",
+  "tags": ["type:e2e", "scope:plugin", "lang:rust", "coverage:profiles"],
+  "implicitDependencies": ["terminal-approval"],
+  "targets": {
+    "format": {
+      "executor": "nx:run-commands",
+      "options": { "command": "cargo fmt -p terminal-approval-e2e" }
+    },
+    "format-check": {
+      "executor": "nx:run-commands",
+      "options": { "command": "cargo fmt -p terminal-approval-e2e -- --check" }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cargo clippy -p terminal-approval-e2e --locked --all-targets --all-features -- -D warnings"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": { "command": "cargo check -p terminal-approval-e2e --locked --all-targets --all-features" }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["terminal-approval:build", "coverage:coverage-clear"],
+      "options": { "command": "bash tools/coverage/coverage.sh test terminal-approval-e2e" },
+      "outputs": ["{workspaceRoot}/target/llvm-cov-target"],
+      "//": "After terminal-approval:build, so a broken binary fails there by name. Under coverage the journeys drive the instrumented copy tools/coverage/coverage.sh builds into target/llvm-cov-target, so the crate lines they reach count toward coverage:coverage."
+    }
+  }
+}

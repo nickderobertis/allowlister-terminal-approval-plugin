@@ -1,0 +1,36 @@
+{
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "//": "Nx runs targets over the project graph (one project.json per project); Cargo resolves the Rust dependencies (one Cargo.lock) and npm the carrier's (one package-lock.json). The justfile always passes an explicit --base (tools/nx-base.sh), so defaultBase is never what the gate keys off. Cached targets that compile a dependency (lint, typecheck, doc) also hash that dependency's inputs (^default). Targets that run tests, write coverage profiles, build artifacts, or query advisories are uncached: a replay could not restore what they prove.",
+  "defaultBase": "main",
+  "namedInputs": {
+    "default": ["{projectRoot}/**/*", "sharedGlobals"],
+    "sharedGlobals": [
+      "{workspaceRoot}/nx.json",
+      "{workspaceRoot}/package.json",
+      "{workspaceRoot}/package-lock.json"
+    ],
+    "rust": [
+      "{workspaceRoot}/Cargo.toml",
+      "{workspaceRoot}/Cargo.lock",
+      "{workspaceRoot}/rust-toolchain.toml",
+      "{workspaceRoot}/.cargo/config.toml",
+      "{workspaceRoot}/clippy.toml",
+      "{workspaceRoot}/rustfmt.toml",
+      { "env": "RUSTFLAGS" }
+    ]
+  },
+  "targetDefaults": {
+    "format-check": { "cache": true, "inputs": ["default", "rust"] },
+    "lint": { "cache": true, "inputs": ["default", "^default", "rust"] },
+    "typecheck": { "cache": true, "inputs": ["default", "^default", "rust"] },
+    "doc": { "cache": true, "inputs": ["default", "^default", "rust", { "env": "RUSTDOCFLAGS" }] },
+    "format": { "cache": false },
+    "build": { "cache": false },
+    "test": { "cache": false },
+    "coverage-clear": { "cache": false },
+    "coverage": { "cache": false },
+    "supply-chain": { "cache": false },
+    "release-check": { "cache": false },
+    "msrv": { "cache": false }
+  }
+}

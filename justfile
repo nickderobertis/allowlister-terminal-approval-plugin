@@ -4,15 +4,13 @@
 # - Successful recipes print little or nothing beyond the tool's own output.
 # - Failing recipes preserve actionable output (paths, lints, diffs, codes).
 # - Every recipe pins dependencies with `--locked`.
+# - The gate recipes DELEGATE to Nx (`tools/nx`): each project.json declares
+#   what its targets run; the root only chooses which projects run them, by tier
+#   (`affected`, the default, from the explicit base tools/nx-base.sh prints; or
+#   `all`, the full sweep over every project). A mistyped tier aborts rather than
+#   quietly buying a weaker one.
 
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
-
-# Minimum coverage enforced by `test-cov`, applied to lines, functions, and
-# regions alike (a miss in any fails the command). Actual coverage sits above
-# this; what remains uncovered is defensive terminal I/O that cannot fail under
-# test. New code that adds reachable branches should ship with tests rather than
-# lean on the margin.
-cov-min := "95"
 
 # Pinned developer tool versions (installed by `bootstrap`). CI installs the
 # latest of each via taiki-e/install-action; these pins keep local setups
@@ -53,6 +51,10 @@ bootstrap:
             || echo "! lefthook unavailable; install it manually to enable git hooks"
     fi
     command -v lefthook >/dev/null && lefthook install || echo "» skipping git hooks (lefthook missing)"
+    # Nx (the orchestrator every gate recipe delegates to) and the npm carrier
+    # workspace, from the locked package-lock.json; tools/nx runs `npm ci`
+    # whenever the lock moved.
+    bash tools/nx --version >/dev/null
     echo "✓ bootstrap complete"
 
 # Fetch locked dependencies and confirm the pinned toolchain is present.
@@ -65,63 +67,62 @@ sync:
 run *args:
     @cargo run --quiet --locked -- {{args}}
 
-# Format the workspace in place.
-format:
-    cargo fmt --all
+# Run Nx targets at a tier: `affected` (the projects this change can reach, from
+# an explicit merge base: NX_BASE when set, else the merge base with origin/main)
+# or `all` (every project). Static output inlines every task's log, so a failing
+# target's findings appear in the recipe's output.
+[private]
+nx-tier tier +args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case {{ quote(tier) }} in
+        affected) base="$(bash tools/nx-base.sh)"; exec bash tools/nx affected --base="$base" --output-style=static {{ args }} ;;
+        all) exec bash tools/nx run-many --output-style=static {{ args }} ;;
+        *) printf "unknown tier '%s' — use 'affected' (the default) or 'all'\n" {{ quote(tier) }} >&2; exit 2 ;;
+    esac
+
+# Format in place (each project's `format` target).
+format tier="affected": (nx-tier tier "-t format")
 
 # Alias for `format`.
-fmt: format
+fmt tier="affected": (format tier)
 
 # Check formatting without writing (fails on any diff).
-fmt-check:
-    cargo fmt --all --check
+fmt-check tier="affected": (nx-tier tier "-t format-check")
 
-# Type-check all targets and features (a phase of the `check` gate).
-typecheck:
-    cargo check --locked --all-targets --all-features
+# Type-check all targets and features of each crate (a phase of the `check` gate).
+typecheck tier="affected": (nx-tier tier "-t typecheck")
 
-# Lint with every warning treated as an error.
-lint:
-    cargo clippy --locked --all-targets --all-features -- -D warnings
+# Lint with every warning treated as an error: clippy per crate, plus the
+# project-graph module boundaries (workspace:lint).
+lint tier="affected": (nx-tier tier "-t lint")
 
-# Alias for `lint`.
-clippy: lint
+# Clippy (-D warnings) over the Rust crates only: their `lint` targets.
+clippy tier="affected": (nx-tier tier "-t lint --projects=tag:lang:rust")
 
-# Apply machine-applicable clippy fixes.
+# Apply machine-applicable clippy fixes across the workspace.
 clippy-fix:
-    cargo clippy --fix --allow-dirty --allow-staged --locked --all-targets --all-features
+    cargo clippy --fix --allow-dirty --allow-staged --locked --workspace --all-targets --all-features
 
-# Unit tests (library + binary): excludes the slower integration/e2e suite.
-test:
-    cargo nextest run --locked --status-level fail -E 'not kind(test)'
+# Every test target except the binary-driving e2e suite: the crate's unit tests,
+# the npm carrier's suite, and the tooling and workflow-contract suites.
+test tier="affected": (nx-tier tier "-t test --exclude=tag:type:e2e")
 
 # The end-to-end suite that drives the compiled binary (stdin/stdout and the
-# real `/dev/tty` prompt under a PTY).
-test-e2e:
-    cargo nextest run --locked --status-level fail -E 'kind(test)'
+# real `/dev/tty` prompt under a PTY): terminal-approval-e2e:test, after
+# terminal-approval:build. `check` runs it too.
+test-e2e tier="affected": (nx-tier tier "-t test --projects=tag:type:e2e")
 
-# Enforce line, function, and region coverage across all tests (unit + e2e); a
-# miss in any one fails. `main.rs` (the thin I/O shell, driven by e2e) and the
-# test sources themselves are excluded from the denominator.
-test-cov:
-    cargo llvm-cov nextest --locked --all-features \
-        --ignore-filename-regex '(src/main\.rs|tests/)' \
-        --fail-under-lines {{cov-min}} \
-        --fail-under-functions {{cov-min}} \
-        --fail-under-regions {{cov-min}}
+# Enforce 95% line, function, and region coverage over the unit + e2e runs:
+# coverage:coverage runs after both crates' instrumented `test` targets and
+# merges their profiles; the floor lives in tools/coverage/coverage.sh.
+test-cov tier="affected": (nx-tier tier "-t coverage")
 
 # Build the API docs (warnings are errors).
-doc:
-    RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --all-features
+doc tier="affected": (nx-tier tier "-t doc")
 
-# Security advisories for the dependency tree.
-security:
-    cargo deny --locked check advisories
-
-# Dependency hygiene: bans, licenses, sources, and unused dependencies.
-deps-check:
-    cargo deny --locked check bans licenses sources
-    cargo machete
+# Supply chain: cargo-deny (advisories, bans, licenses, sources) + cargo-machete.
+supply-chain tier="affected": (nx-tier tier "-t supply-chain")
 
 # --- LLM-judge tier (llmlint) ------------------------------------------------
 # Non-deterministic and needs an authenticated harness, so it is NOT part of
@@ -145,10 +146,10 @@ lint-llm *paths:
 lint-llm-diff base="origin/main" *args:
     llmlint --diff --diff-base "{{base}}" {{args}}
 
-# Check the crate against its declared minimum supported Rust version.
+# Check every crate against the declared minimum supported Rust version.
 # Requires the MSRV toolchain (`rustup toolchain install 1.88.0`).
 msrv:
-    cargo +1.88.0 check --locked --all-targets --all-features
+    @bash tools/nx run workspace:msrv --output-style=static
 
 # Install git hooks (needs lefthook).
 hooks-install:
@@ -158,9 +159,14 @@ hooks-install:
 hooks:
     lefthook run pre-commit --all-files
 
-# Debug build.
+# Debug build of the plugin (terminal-approval:build).
 build:
-    cargo build --locked
+    @bash tools/nx run terminal-approval:build --output-style=static
+
+# Optimized release build for the host: the terminal-approval:release-check
+# target the gate runs.
+release-check:
+    @bash tools/nx run terminal-approval:release-check --output-style=static
 
 # Optimized release build (the shipped profile). With no argument, builds for the
 # host (the dev gate and install-smoke); with a target triple, cross-compiles for
@@ -168,32 +174,23 @@ build:
 build-release target="":
     cargo build --release --locked {{ if target != "" { "--target " + target } else { "" } }}
 
-# Full quality gate. Stops at the first failing phase; minimal output on success.
-# This is THE gate: format, type-check, lint, the full test suite (unit +
-# integration + real-terminal e2e), enforced coverage, then dependency/security/
-# docs/release checks. `bootstrap` then `check` is what CI runs and what proves
-# the artifact; nothing here is warnings-only.
-check:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    phase() { printf '\n» %s\n' "$1"; }
-    phase "format";        just fmt-check
-    phase "typecheck";     just typecheck
-    phase "lint";          just lint
-    phase "test";          just test
-    phase "test-e2e";      just test-e2e
-    phase "coverage";      just test-cov
-    phase "deps-check";    just deps-check
-    phase "security";      just security
-    phase "docs";          just doc
-    phase "release build"; just build-release
-    printf '\n✓ check passed\n'
+# Full quality gate. This is THE gate: format check, type-check, lint (clippy and
+# the project boundaries), every test target (unit, the real-terminal e2e, the npm
+# carrier's suite, the tooling and workflow-contract suites), enforced coverage
+# over the unit + e2e runs, docs, the release build, and the supply chain — over
+# the projects this change can reach, or every project with `just check all`
+# (the full sweep: the release-PR run and the release re-gate). `bootstrap` then
+# `check` is what CI runs; nothing here is warnings-only, and any failing target
+# fails the recipe.
+check tier="affected": (nx-tier tier "-t format-check lint typecheck test build doc release-check coverage supply-chain")
 
-# Update dependencies and the lockfile, then re-run the full gate so the repo
-# lands on current deps proven green. Review the diff before committing.
+# Update the Rust dependencies and Cargo.lock, then re-run the gate as the full
+# sweep: an upgrade can reach any project, so the affected set would understate
+# it. Review the diff before committing. The Nx toolchain is pinned exactly in
+# package.json and bumped deliberately, not here.
 upgrade:
     cargo update
-    @just check
+    @just check all
 
 # Remove build artifacts.
 clean:
@@ -202,7 +199,7 @@ clean:
 # Noisy environment diagnostics (never part of the quality gate).
 doctor:
     @echo "## toolchain" && rustc --version && cargo --version
-    @echo "## tools" && for t in just cargo-nextest cargo-llvm-cov cargo-deny cargo-machete lefthook; do printf '%-16s ' "$t"; command -v "$t" || echo "MISSING"; done
+    @echo "## tools" && for t in just node npm cargo-nextest cargo-llvm-cov cargo-deny cargo-machete lefthook; do printf '%-16s ' "$t"; command -v "$t" || echo "MISSING"; done
 
 # Fast, deterministic llmlint gate — no model calls, no harness credential: config
 # structure, that every `llmlint: ignore` directive names a real rule, and that

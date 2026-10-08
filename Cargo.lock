@@ -15,10 +15,6 @@ dependencies = [
 name = "allowlister-terminal-approval-plugin"
 version = "0.1.0"
 dependencies = [
- "assert_cmd",
- "libc",
- "nix",
- "predicates",
  "serde",
  "serde_json",
 ]
@@ -268,6 +264,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "terminal-approval-e2e"
+version = "0.0.0"
+dependencies = [
+ "assert_cmd",
+ "libc",
+ "nix",
+ "predicates",
+ "serde_json",
 ]
 
 [[package]]

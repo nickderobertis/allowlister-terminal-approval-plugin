@@ -1,0 +1,41 @@
+# The binary-driving end-to-end suite: spawns the compiled
+# `allowlister-terminal-approval-plugin` binary (built by the
+# `terminal-approval:build` target, or the instrumented copy
+# tools/coverage/coverage.sh builds) and asserts on its exit, stdout and the
+# terminal transcript. Test-only: never published or released. It has no Cargo
+# dependency on the plugin crate — the binary under test is always the spawned
+# executable, never an in-process call — so its project.json declares that edge
+# to Nx as an implicit dependency.
+[package]
+name = "terminal-approval-e2e"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+autotests = false
+
+# Non-interactive: one JSON payload on stdin, one response on stdout.
+[[test]]
+name = "cli"
+path = "cli.rs"
+
+# Interactive: the real `/dev/tty` prompt under a PTY (unix-only; the file is
+# `#![cfg(unix)]`).
+[[test]]
+name = "terminal"
+path = "terminal.rs"
+
+[dev-dependencies]
+assert_cmd.workspace = true
+predicates.workspace = true
+serde_json.workspace = true
+
+# The interactive `/dev/tty` prompt can only be exercised under a real
+# controlling terminal, so the unix e2e allocates a PTY (nix::pty::openpty) and
+# makes the child its session leader with that PTY as its controlling terminal
+# (libc setsid + TIOCSCTTY). Unix-only: the terminal experience is `/dev/tty`.
+[target.'cfg(unix)'.dev-dependencies]
+nix.workspace = true
+libc.workspace = true

@@ -20,11 +20,24 @@ env:
   GITHUB_TOKEN: ${{ github.token }}
 
 jobs:
-  # The gate. A clean checkout runs `just bootstrap` then `just check` — the same
-  # full quality gate developers run locally (format, type-check, lint, unit +
-  # real-terminal e2e, enforced coverage, deps/security, docs, release build).
+  # The gate. A clean checkout runs `just bootstrap` then `just check` at the
+  # tier .github/scripts/gate-tier.mjs routes the event to (the release model and
+  # this placement are recorded in AGENTS.md "Commits, releases, and merging"):
+  #
+  #   * a pull request from release-plz's release branch runs the FULL SWEEP
+  #     (`just check all`) — the repo batches releases behind that PR, so this is
+  #     the one point the broader tier runs, and a red sweep fails these required
+  #     contexts so auto-merge cannot cut a release past it;
+  #   * every other pull request, and every push to main, runs the AFFECTED tier
+  #     (`just check affected`) against the explicitly derived base the router
+  #     exports as NX_BASE (the merge base with the PR's base branch, or the
+  #     push's previous tip).
+  #
   # Matrix over the unix platforms the binary ships to. The context names
-  # (`test (ubuntu-latest)`, ...) are the protected required checks — keep stable.
+  # (`test (ubuntu-latest)`, ...) are the protected required checks — keep them
+  # stable. No `if`, `needs` or path filter: each cell reports on every pull
+  # request, including one whose targets are all unaffected (Nx runs nothing and
+  # the job passes). .github/tests/workflow-contract.test.mjs enforces this.
   test:
     name: test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -34,7 +47,17 @@ jobs:
       matrix:
         os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
     steps:
+      # Full history: the affected tier resolves its merge base from it.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Node runs Nx, the orchestrator every gate recipe delegates to. This is the
+      # dev toolchain's Node; install-smoke and publish keep Node 20 because they
+      # prove the npm carrier on its `engines` floor.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
       - name: Install pinned toolchain
         run: rustup show
       - uses: Swatinem/rust-cache@v2
@@ -49,8 +72,14 @@ jobs:
           tool: just,cargo-nextest,cargo-llvm-cov,cargo-deny,cargo-machete
       - name: Bootstrap
         run: just bootstrap
+      - name: Choose the gate tier
+        id: tier
+        run: node .github/scripts/gate-tier.mjs
       - name: Gate (just check)
-        run: just check
+        env:
+          TIER: ${{ steps.tier.outputs.tier }}
+          NX_BASE: ${{ steps.tier.outputs.base }}
+        run: just check "$TIER"
 
   # Prove the npm install path a user actually takes: build the host binary,
   # stage it into the matching platform package, unit-test the JS resolver, then

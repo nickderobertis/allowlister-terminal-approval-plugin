@@ -17,6 +17,12 @@
 # Release — it never runs `cargo publish` itself.
 publish = false
 
+# The branch release-plz opens its release PR from (release-plz's own default,
+# stated so it has one source): the CI tier router (.github/scripts/gate-tier.mjs)
+# runs the full sweep on a pull request from it, and release-plz.yml's auto-merge
+# step selects the release PR by it.
+pr_branch_prefix = "release-plz-"
+
 # API breaking-change detection (cargo-semver-checks) needs an extra tool and
 # would block releases on any lib-surface change; rely on review and the
 # conventional-commit type instead (a `!` or `BREAKING CHANGE:` still bumps major).

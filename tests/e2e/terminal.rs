@@ -16,6 +16,7 @@ use std::fs::File;
 use std::io::{self, Read, Write};
 use std::os::fd::AsRawFd;
 use std::os::unix::process::CommandExt;
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -24,8 +25,12 @@ use std::time::{Duration, Instant};
 use nix::pty::openpty;
 use serde_json::Value;
 
-fn plugin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_allowlister-terminal-approval-plugin")
+/// The compiled plugin, found beside this test executable (`target/debug`, or the
+/// instrumented copy under `target/llvm-cov-target` in a coverage run). It is
+/// another crate's binary, so Cargo sets no `CARGO_BIN_EXE_*` for it here; the
+/// `terminal-approval-e2e:test` target builds it first.
+fn plugin_path() -> PathBuf {
+    assert_cmd::cargo::cargo_bin("allowlister-terminal-approval-plugin")
 }
 
 /// Drive the plugin against a real controlling terminal: deliver `payload` on

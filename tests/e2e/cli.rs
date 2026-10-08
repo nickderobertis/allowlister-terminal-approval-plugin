@@ -16,6 +16,22 @@ fn plugin() -> Command {
     Command::cargo_bin("allowlister-terminal-approval-plugin").expect("binary builds")
 }
 
+/// The plugin crate's version, read from its manifest at the repo root: this e2e
+/// crate's own `CARGO_PKG_VERSION` is a placeholder (`0.0.0`), and the binary
+/// reports the plugin crate's.
+fn plugin_version() -> &'static str {
+    const MANIFEST: &str = include_str!("../../Cargo.toml");
+    let package = MANIFEST
+        .split("\n[package]\n")
+        .nth(1)
+        .expect("the root Cargo.toml has a [package] table");
+    package
+        .lines()
+        .find_map(|line| line.strip_prefix("version = \""))
+        .and_then(|rest| rest.strip_suffix('"'))
+        .expect("the root [package] states a literal version")
+}
+
 /// Run the plugin with `payload` on stdin, assert success, and return the parsed
 /// `{verdict, reason}` response.
 fn run(payload: &str) -> Value {
@@ -80,7 +96,7 @@ fn version_flag_prints_the_crate_version() {
         .arg("--version")
         .assert()
         .success()
-        .stdout(predicates::str::starts_with(env!("CARGO_PKG_VERSION")));
+        .stdout(predicates::str::starts_with(plugin_version()));
 }
 
 #[test]

@@ -1,0 +1,21 @@
+{
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "name": "ci-workflows",
+  "//": "The GitHub Actions workflows and their contract tests (.github/tests): the fixed status-check contexts each reported on every pull request, the per-event tier routing (.github/scripts/gate-tier.mjs) and its hand-off through the gate step to the real gate recipe, and the notignored review workflow standing apart from the contract. It depends on terminal-approval because that root project owns the files these tests read outside this directory \u2014 the justfile (the gate recipe) and release-plz.toml (the release branch prefix) \u2014 and Nx selects affected projects by file ownership, so the edge is what reruns this suite when they change.",
+  "projectType": "library",
+  "tags": [
+    "type:tooling",
+    "scope:ci"
+  ],
+  "implicitDependencies": [
+    "terminal-approval"
+  ],
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node --test .github/tests/*.test.mjs"
+      }
+    }
+  }
+}
