@@ -70,6 +70,10 @@ test("a change to the e2e suite reaches the coverage aggregate but not the crate
   assert.ok(!projects.includes("npm-carrier"), `${projects}`);
 });
 
+test("hook configuration changes reach the tooling suite", () => {
+  assert.ok(affectedBy({ "lefthook.yml": "\n# touched\n" }).includes("workspace"));
+});
+
 test("agent notes reach no project", () => {
   assert.deepEqual(affectedBy({ "AGENTS.md": "\n" }), []);
 });

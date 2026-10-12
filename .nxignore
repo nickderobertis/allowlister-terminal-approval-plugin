@@ -6,10 +6,9 @@
 **/AGENTS.md
 **/CLAUDE.md
 /CHANGELOG.md
-# Agent, hook, judged-lint and secrets-sync settings: read by those tools, never
+# Agent, judged-lint and secrets-sync settings: read by those tools, never
 # by an Nx target.
 /.claude/
-/lefthook.yml
 /llmlint.yml
 /oneharness.toml
 /gh-secrets.json

@@ -65,7 +65,7 @@ change can reach from an explicit base (`NX_BASE`, else the merge base with
 - `just lint-llm` / `just lint-llm-diff` — the LLM-judge tier (llmlint), separate
   from `check` and non-deterministic; config in `llmlint.yml`, `just setup-llmlint`
   installs it. `lint-llm-diff` is the blocking, diff-scoped PR check;
-  `just lint-llm-validate` is its model-free pre-flight (CI and pre-push).
+  `just lint-llm-validate` is its model-free pre-flight (CI).
 
 ## Commits, releases, and merging
 

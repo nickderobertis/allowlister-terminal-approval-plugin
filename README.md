@@ -123,3 +123,8 @@ npm, and the GitHub Release.
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+Git hooks run the fast pre-commit checks; CI owns the full checks and llmlint
+validation and review. `just hooks-install` also removes an obsolete generated
+Lefthook pre-push dispatcher on existing clones. Manual `just check`,
+`just lint-llm-validate`, and `just lint-llm-diff` remain available.
