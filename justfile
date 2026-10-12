@@ -50,7 +50,11 @@ bootstrap:
         cargo binstall --no-confirm --disable-telemetry lefthook \
             || echo "! lefthook unavailable; install it manually to enable git hooks"
     fi
-    command -v lefthook >/dev/null && lefthook install || echo "» skipping git hooks (lefthook missing)"
+    if command -v lefthook >/dev/null; then
+        just hooks-install
+    else
+        echo "» skipping git hooks (lefthook missing; install lefthook, then run just hooks-install)" >&2
+    fi
     # Nx (the orchestrator every gate recipe delegates to) and the npm carrier
     # workspace, from the locked package-lock.json; tools/nx runs `npm ci`
     # whenever the lock moved.
@@ -156,7 +160,7 @@ msrv:
 
 # Install git hooks (needs lefthook).
 hooks-install:
-    lefthook install
+    node tools/install-hooks.mjs
 
 # Run the pre-commit hook set against the working tree.
 hooks:

@@ -13,6 +13,8 @@
   "namedInputs": {
     "default": [
       "{projectRoot}/**/*",
+      "{workspaceRoot}/lefthook.yml",
+      "{workspaceRoot}/justfile",
       "{workspaceRoot}/**/project.json",
       "{workspaceRoot}/**/Cargo.toml",
       "{workspaceRoot}/deny.toml",
