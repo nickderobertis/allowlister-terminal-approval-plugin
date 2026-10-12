@@ -6,7 +6,14 @@ import { test } from "node:test";
 import { repo } from "./tree.mjs";
 
 // Ordinary Git commits and pushes: no hook bypass and no command doubles.
-test("setup retires the generated pre-push hook and ordinary pushes reach the remote", () => {
+test("setup retires the generated pre-push hook and ordinary pushes reach the remote", (t) => {
+  // Bootstrap permits environments without the optional hook manager.
+  const manager = spawnSync("lefthook", ["version"], { encoding: "utf8" });
+  if (manager.error?.code === "ENOENT") {
+    t.skip("lefthook is missing; install it to run the real-hook push journey");
+    return;
+  }
+  assert.equal(manager.status, 0, String(manager.error || manager.stderr || manager.stdout));
   const root = mkdtempSync(join(process.env.ONEPIPELINE_NODE_SCRATCH_DIR || process.env.TMPDIR || "/tmp", "hooks-"));
   const dir = join(root, "clone");
   mkdirSync(dir);
