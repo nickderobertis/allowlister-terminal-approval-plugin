@@ -1,21 +1,48 @@
 {
   "$schema": "../node_modules/nx/schemas/project-schema.json",
-  "name": "ci-workflows",
-  "//": "Depends on terminal-approval because that root project owns the justfile and release-plz.toml these tests read, and Nx selects affected projects by file ownership — the edge is what reruns this suite when they change.",
+  "name": "github-workflows",
+  "//": "Explicit workspace-root inputs select the workflow proofs for routing/build-helper edits without making Rust source changes select the budgets. Test is uncached so telemetry is always recorded for current sources.",
   "projectType": "library",
   "tags": [
     "type:tooling",
     "scope:ci"
   ],
-  "implicitDependencies": [
-    "terminal-approval"
-  ],
+  "implicitDependencies": [],
   "targets": {
     "test": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "node --test .github/tests/*.test.mjs"
+        "command": "npm ci --prefix .github/tooling --ignore-scripts && node --test .github/tests/*.test.mjs"
+      },
+      "cache": false
+    },
+    "budgets": {
+      "executor": "nx:run-commands",
+      "dependsOn": [
+        "test"
+      ],
+      "cache": false,
+      "options": {
+        "command": "node .github/tooling/node_modules/@onebudgetspec/cli/bin/onebudgetspec.js check .github/budgets.yaml"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "actionlint .github/workflows/*.yml && node --check .github/macos-policy.mjs && node --check .github/macos-graph.mjs && node --check .github/macos-budget.mjs"
       }
     }
+  },
+  "namedInputs": {
+    "default": [
+      "{projectRoot}/**/*",
+      "sharedGlobals",
+      "{workspaceRoot}/justfile",
+      "{workspaceRoot}/release-plz.toml",
+      "{workspaceRoot}/scripts/stage-npm-package.mjs",
+      "{workspaceRoot}/scripts/smoke-npm-package.sh",
+      "{workspaceRoot}/scripts/set-npm-package-version.mjs",
+      "{workspaceRoot}/scripts/release-version-pattern.txt"
+    ]
   }
 }

@@ -1,9 +1,11 @@
-# AGENTS — .github (ci-workflows)
+# AGENTS — .github (github-workflows)
 
 - The fixed status-check contexts — `test (ubuntu-latest)`, `test
   (ubuntu-24.04-arm)`, `test (macos-latest)`, `install-smoke`, `pr-title`,
   `llmlint` — are a contract with branch protection: keep their job names, and
-  never add an `if`, `needs` or path filter that could leave one unreported.
+  Linux carriers use `always()` and validate every prerequisite result. Only the
+  semantic release policy may authorize omission of the macOS proof; the carrier
+  must describe that omission honestly. Keep every protected context reported.
   `tests/workflow-contract.test.mjs` enforces it.
 - Tier routing lives in `scripts/gate-tier.mjs` (release-plz's release PR: the
   full sweep; everything else: the affected tier from an explicit base). Change

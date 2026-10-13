@@ -30,12 +30,12 @@ releasing).
 - **Distribution:** crates.io (library) + npm carrier with per-platform native
   binaries (the plugin) + GitHub Release archives. Mirrors allowlister's
   release-plz/`.cargo` setup and allowlister-remote's npm-carrier pattern.
-- **Project graph (Nx; Cargo + one npm lock):** `terminal-approval` (the root
+- **Project graph (Nx; Cargo + root npm lock + private workflow tooling lock):** `terminal-approval` (the root
   crate, `type:contract` — its library is allowlister-remote's prompt contract),
   `terminal-approval-e2e` (`tests/e2e`, the binary-driving suites),
   `npm-carrier` (`packages/allowlister-terminal-approval-plugin`), `workspace`
   (`tools/`: boundaries, supply chain, MSRV), `coverage` (`tools/coverage/`, the
-  merged 95% floor), `ci-workflows` (`.github/`). Allowed edges are in
+  merged 95% floor), `github-workflows` (`.github/`, private locked Node tooling). Allowed edges are in
   `tools/project-boundaries.json`; `.nxignore` keeps agent notes and agent/hook
   settings out of the graph.
 - **Excluded, and why:**

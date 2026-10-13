@@ -1,0 +1,13 @@
+{
+  "name": "terminal-approval-github-tooling",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "yaml": "2.9.1",
+    "@actions/expressions": "0.3.61",
+    "@onebudgetspec/sdk": "0.1.4"
+  }
+}

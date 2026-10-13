@@ -186,7 +186,7 @@ build-release target="":
 # Full quality gate, over the projects this change can reach or, with `all`, every
 # project (the full sweep). Nothing is warnings-only: any failing target fails the
 # recipe.
-check tier="affected": (nx-tier tier "-t format-check lint typecheck test build doc release-check coverage supply-chain")
+check tier="affected": (nx-tier tier "-t format-check lint typecheck test build doc release-check coverage supply-chain budgets")
 
 # Update the Rust dependencies and Cargo.lock, then re-run the gate as the full
 # sweep: an upgrade can reach any project, so the affected set would understate

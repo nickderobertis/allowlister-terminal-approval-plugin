@@ -53,6 +53,10 @@ test("a change to the crate's sources selects the crate and its e2e suite", () =
   for (const p of ["terminal-approval", "terminal-approval-e2e", "coverage"]) assert.ok(projects.includes(p), `${p} in ${projects}`);
 });
 
+test("workflow routing and packaging inputs select the workflow proofs without a Rust-source dependency", () => {
+  for(const path of ["justfile","release-plz.toml","scripts/stage-npm-package.mjs","scripts/smoke-npm-package.sh","scripts/set-npm-package-version.mjs","scripts/release-version-pattern.txt"])assert.ok(affectedBy({[path]:"\n"}).includes("github-workflows"),path);
+  assert.ok(!affectedBy({"src/prompt.rs":"\n// changed\n"}).includes("github-workflows"));
+});
 test("a change to the carrier's sources or tests selects the carrier and nothing Rust", () => {
   for (const file of [
     "packages/allowlister-terminal-approval-plugin/lib/platform.mjs",
@@ -121,7 +125,7 @@ test("`just test` on a carrier-only change runs the carrier's suite as its graph
   assert.equal(green.status, 0, green.stderr + green.stdout);
   assert.match(green.stdout, /nx run npm-carrier:test/);
   assert.match(green.stdout, /ℹ pass [1-9]/, "the carrier's tests actually ran");
-  assert.doesNotMatch(green.stdout, /nx run (terminal-approval|coverage|workspace|ci-workflows)/);
+  assert.doesNotMatch(green.stdout, /nx run (terminal-approval|coverage|workspace|github-workflows)/);
   affectedBy({
     "packages/allowlister-terminal-approval-plugin/test/platform.test.mjs":
       '\ntest("induced failure", () => assert.equal(1, 2));\n',

@@ -43,7 +43,7 @@ test("nothing but the repo-level checks may depend on the e2e suite", () => {
   const out = check(dir);
   assert.equal(out.status, 1);
   assert.match(out.stderr, /npm-carrier \(type:app\) may not depend on terminal-approval-e2e \(type:e2e\)/);
-  assert.match(out.stderr, /ci-workflows \(type:tooling\) may not depend on terminal-approval-e2e \(type:e2e\)/);
+  assert.match(out.stderr, /github-workflows \(type:tooling\) may not depend on terminal-approval-e2e \(type:e2e\)/);
 });
 
 test("the crate may not depend on its e2e suite through Cargo either", () => {
@@ -64,6 +64,6 @@ test("every project carries one known type tag, and every Cargo member a project
   git(dir, "rm", "-q", "-f", "tests/e2e/project.json");
   const out = check(dir);
   assert.equal(out.status, 1);
-  assert.match(out.stderr, /ci-workflows must carry exactly one type:\* tag/);
+  assert.match(out.stderr, /github-workflows must carry exactly one type:\* tag/);
   assert.match(out.stderr, /Cargo member terminal-approval-e2e \(tests\/e2e\/Cargo.toml\) has no project.json beside it/);
 });

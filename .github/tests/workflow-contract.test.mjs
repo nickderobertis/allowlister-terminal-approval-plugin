@@ -17,7 +17,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { parse } from "yaml";
+import { parse } from "../tooling/node_modules/yaml/dist/index.js";
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const workflowsDir = join(repo, ".github/workflows");
@@ -44,7 +44,7 @@ const CONTRACT = {
   llmlint: "llmlint.yml",
 };
 // Every target the gate ran before the project graph, by its graph name.
-const GATE_TARGETS = ["format-check", "lint", "typecheck", "test", "build", "doc", "release-check", "coverage", "supply-chain"];
+const GATE_TARGETS = ["format-check", "lint", "typecheck", "test", "build", "doc", "release-check", "coverage", "supply-chain", "budgets"];
 
 /** The status-check contexts a job reports: its name (or id), expanded over a literal `matrix.os`. */
 function contexts(id, job) {
@@ -76,8 +76,13 @@ test("every contract workflow runs on every pull request to the default branch",
 });
 
 test("no condition, dependency or skippable step can leave a contract job unreported or green", () => {
-  assert.equal(contractJobs.length, 4, "test (matrix), install-smoke, pr-title, llmlint");
+  assert.equal(contractJobs.length, 5, "Linux matrix, Mac carrier, install-smoke, pr-title, llmlint");
   for (const [file, id, job] of contractJobs) {
+    if (id === "macos-result") {
+      assert.equal(job.if, "always()");
+      assert.deepEqual(job.needs, ["macos-policy", "macos-test"]);
+      continue;
+    }
     for (const key of ["if", "needs", "continue-on-error"]) {
       assert.equal(job[key], undefined, `${file}:${id} must not set \`${key}\``);
     }
