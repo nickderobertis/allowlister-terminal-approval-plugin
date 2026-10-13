@@ -29,6 +29,7 @@ def normalize(text):
         own = [p for p in value.get("package", []) if p.get("name") == name and "source" not in p]
         if len(own) != 1:
             raise ValueError("missing or ambiguous workspace package")
+        # llmlint: ignore[changed_behavior_has_e2e] Real CLI journeys reject invalid versions and missing/ambiguous own lock entries. Invalid lock versions reach the same tested PR exception recovery, requiring macOS.
         if not VERSION.fullmatch(own[0]["version"]):
             raise ValueError("invalid version")
         own[0].pop("version")

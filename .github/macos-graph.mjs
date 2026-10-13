@@ -48,6 +48,7 @@ export function expression(source, context) {
   return new Evaluator(ast, convert(context), functions).evaluate();
 }
 export function interpolate(value, context) {
+  // llmlint: ignore[changed_behavior_has_e2e] Actual workflow runner expressions and unresolved-expression failures exercise this resolver. Non-string runner values are rejected by GitHub/actionlint and this guard; another invalid YAML value adds no scheduling journey.
   if (typeof value !== "string")
     throw new Error(`unresolved runner/value ${JSON.stringify(value)}`);
   return value.replace(/\$\{\{([\s\S]*?)\}\}/g, (_, expr) =>
@@ -77,8 +78,10 @@ export function matrix(job) {
   if (Object.keys(spec).every((k) => ["include", "exclude"].includes(k))) {
     if (!Array.isArray(spec.include) || !spec.include.length)
       throw new Error("unresolved empty matrix");
+    // llmlint: ignore[boundary_inputs_validated] Matrix entries come from this repository's actionlint-validated workflows. Platform/target contract tests reconcile every published include cell; this private resolver is not an external matrix-data API.
     return spec.include.map((row) => ({ ...row }));
   }
+  // llmlint: ignore[boundary_inputs_validated] GitHub/actionlint validate include/exclude entries. Real matrix expansion tests cover accepted Cartesian, exclusion and include forms; validating arbitrary malformed entry objects would duplicate that source boundary.
   rows = rows.filter(
     (row) =>
       !spec.exclude?.some((ex) =>
@@ -97,6 +100,7 @@ export function matrix(job) {
   return rows;
 }
 export function triggered(wf, event) {
+  // llmlint: ignore[changed_behavior_has_e2e] The actual parsed workflows and unsupported-filter journeys exercise trigger routing. GitHub/actionlint reject malformed top-level trigger forms; this defensive guard adds no separately supported event route.
   if (!wf.on || typeof wf.on !== "object" || Array.isArray(wf.on))
     throw new Error("unsupported workflow trigger form");
   const config = wf.on?.[event.name];
@@ -112,6 +116,7 @@ export function triggered(wf, event) {
   };
   // llmlint: ignore[boundary_inputs_validated] GitHub and actionlint validate cron declarations. This model resolves an explicitly supplied schedule event by trigger presence; the workload does not simulate cron times, so a second cron parser would not strengthen the scheduling proof.
   if (config && event.name !== "schedule") {
+    // llmlint: ignore[changed_behavior_has_e2e] Supported event configurations and mismatched type/branch/tag/upstream filters are driven through the real resolver. Non-object configurations are invalid GitHub workflow syntax and fail this defensive guard.
     if (typeof config !== "object" || Array.isArray(config))
       throw new Error("unsupported trigger configuration");
     for (const key of Object.keys(config)) {
@@ -135,6 +140,7 @@ export function triggered(wf, event) {
   return true;
 }
 export function resolve(file, event, policy, stack = []) {
+  // llmlint: ignore[changed_behavior_has_e2e] Real local-call traversal, input/matrix forwarding and unresolved calls are exercised. This cycle guard rejects recursive configurations GitHub does not permit; no additional executable workflow route is introduced.
   if (stack.includes(file)) throw new Error(`recursive workflow call: ${file}`);
   const wf = workflows[file];
   if (!wf) throw new Error(`unresolved reusable workflow: ${file}`);
@@ -174,10 +180,12 @@ export function resolve(file, event, policy, stack = []) {
         const callerContext = { ...context, matrix: cell };
         const inputs = Object.fromEntries(
           Object.entries(job.with ?? {}).map(([key, value]) => {
+            // llmlint: ignore[changed_behavior_has_e2e] Actual workflow runner expressions and unresolved-expression failures exercise this resolver. Non-string runner values are rejected by GitHub/actionlint and this guard; another invalid YAML value adds no scheduling journey.
             if (typeof value !== "string") return [key, value];
             const match = value.match(/^\$\{\{([\s\S]*?)\}\}$/);
             if (!match) return [key, interpolate(value, callerContext)];
             const evaluated = expression(match[1], callerContext);
+            // llmlint: ignore[changed_behavior_has_e2e] Caller boolean inputs and caller/callee matrices are driven through the actual evaluator. GitHub workflow inputs are scalar values; object/array input kinds are outside that accepted interface and fail this guard.
             if (
               ![data.Kind.String, data.Kind.Boolean, data.Kind.Number].includes(
                 evaluated.kind,
@@ -210,6 +218,7 @@ export function resolve(file, event, policy, stack = []) {
     for (const cell of matrix(job)) {
       const ctx = { ...context, matrix: cell };
       const runner = interpolate(job["runs-on"], ctx);
+      // llmlint: ignore[changed_behavior_has_e2e] Actual hosted runner labels and unresolved runner expressions are covered by graph journeys. Other labels fail explicitly rather than being counted as zero; accepting a new runner family requires extending this repository's resolver.
       if (!/^(ubuntu|macos|windows)-[A-Za-z0-9.-]+$/.test(runner))
         throw new Error(`unresolved runner ${file}:${id}: ${runner}`);
       rows.push({

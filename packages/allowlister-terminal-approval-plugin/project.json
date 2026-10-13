@@ -24,7 +24,19 @@
       "cache": false,
       "options": {
         "command": "node --test packages/allowlister-terminal-approval-plugin/test/release.journey.mjs"
-      }
+      },
+      "//": "New native packaging proof runs on Linux CI; Mac PR CI reports an explicit skip because publish runs both real Darwin installs. Existing Mac test assertions are unchanged.",
+      "inputs": [
+        "default"
+      ]
     }
+  },
+  "namedInputs": {
+    "default": [
+      "{projectRoot}/**/*",
+      "sharedGlobals",
+      "{workspaceRoot}/.github/workflows/ci.yml",
+      "{workspaceRoot}/.github/workflows/publish.yml"
+    ]
   }
 }

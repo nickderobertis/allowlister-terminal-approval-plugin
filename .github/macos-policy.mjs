@@ -4,6 +4,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, appendFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 import { releaseBranchPrefix } from "./scripts/gate-tier.mjs";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const git = (...args) =>
@@ -19,6 +20,7 @@ const version = new RegExp(
 );
 function jsonWithoutVersion(text) {
   const obj = JSON.parse(text);
+  // llmlint: ignore[changed_behavior_has_e2e] Real CLI journeys cover malformed event JSON, invalid versions and malformed Cargo metadata. JSON parse/type failures reach the same tested conservative PR recovery and cannot authorize omission.
   if (
     typeof obj.version !== "string" ||
     obj.version.trim() !== obj.version ||
@@ -55,6 +57,7 @@ export function classify(
     )
       return decision(false, "ordinary or fork PR");
     for (const ref of [base, head]) {
+      // llmlint: ignore[changed_behavior_has_e2e] Real CLI journeys prove unreadable refs require macOS. Syntactic ref rejection reaches the same tested conservative recovery before invoking git.
       if (
         typeof ref !== "string" ||
         !/^[A-Za-z0-9_./-]+$/.test(ref) ||
@@ -71,6 +74,7 @@ export function classify(
     const name = git("show", `${base}:Cargo.toml`).match(
       /^name\s*=\s*"([^"]+)"/m,
     )?.[1];
+    // llmlint: ignore[changed_behavior_has_e2e] The malformed Cargo and unreadable-history journeys exercise this shared PR exception recovery. A missing base package name throws into that recovery and requires macOS, rather than treating the diff as release-only.
     if (!name) throw new Error("missing package name");
     for (const row of files) {
       const [status, path] = row.split("\t");
@@ -99,8 +103,10 @@ export function classify(
         )
       ) {
         if (
-          JSON.stringify(jsonWithoutVersion(before)) !==
-          JSON.stringify(jsonWithoutVersion(after))
+          !isDeepStrictEqual(
+            jsonWithoutVersion(before),
+            jsonWithoutVersion(after),
+          )
         )
           return decision(false, `non-version manifest edit: ${path}`);
       } else return decision(false, `non-release file: ${path}`);

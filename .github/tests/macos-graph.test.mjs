@@ -389,6 +389,30 @@ test("real SDK measurement commands consume writer output and reject stale/malfo
       const detail = JSON.parse(result.detail);
       assert.ok(detail.runs.every((run) => run.rows.some((row) => row.macos)));
       assert.deepEqual(detail.scenarios, telemetry.scenarios);
+      assert.equal(detail.lifecycles.length, telemetry.lifecycles.length);
+      for (const [index, cycle] of detail.lifecycles.entries()) {
+        assert.equal(
+          cycle.crates,
+          telemetry.lifecycles[index].crates,
+          "optional publication metadata is preserved",
+        );
+        assert.ok(
+          cycle.runs.every((run) => run.rows.some((row) => row.macos)),
+          "lifecycle detail contains only Mac-spending runs",
+        );
+        for (const original of telemetry.lifecycles[index].runs) {
+          const preserved = cycle.runs.some(
+            (run) =>
+              run.workflow === original.workflow &&
+              run.scenario === original.scenario,
+          );
+          assert.equal(
+            preserved,
+            original.rows.some((row) => row.macos),
+            `${original.scenario}: lifecycle detail follows actual runner rows`,
+          );
+        }
+      }
     }
     const corrupt = (edit) => {
       const value = structuredClone(telemetry);
@@ -569,6 +593,41 @@ test("unresolved runner/call expressions fail instead of reporting zero", () => 
     () => resolve("invalid.yml", { name: "push" }, {}),
     /cannot opt into diagnostics/,
   );
+  workflows["nested.yml"] = {
+    jobs: {
+      capture: {
+        name: "capture (${{ inputs.marker }})",
+        "runs-on": "${{ inputs.runner }}",
+      },
+    },
+  };
+  for (const [inputs, expected] of [
+    [{ runner: "macos-latest", marker: "literal" }, "literal"],
+    [
+      { runner: "${{ matrix.os }}", marker: "prefix-${{ matrix.marker }}" },
+      "prefix-token",
+    ],
+    [{ runner: "${{ matrix.os }}", marker: "${{ matrix.marker }}" }, "token"],
+    [{ runner: "${{ matrix.os }}", marker: "${{ matrix.number }}" }, "7"],
+  ]) {
+    workflows["invalid.yml"] = {
+      jobs: {
+        call: {
+          uses: "./.github/workflows/nested.yml",
+          with: inputs,
+          strategy: {
+            matrix: { os: ["macos-latest"], marker: ["token"], number: [7] },
+          },
+        },
+      },
+    };
+    const forwarded = resolve("invalid.yml", { name: "pull_request" }, {});
+    assert.deepEqual(
+      forwarded.map((row) => [row.runner, row.name, row.macos]),
+      [["macos-latest", `capture (${expected})`, true]],
+      "caller scalar inputs reach the real callee expression evaluation",
+    );
+  }
   delete workflows["nested.yml"];
   assert.equal(
     triggered(

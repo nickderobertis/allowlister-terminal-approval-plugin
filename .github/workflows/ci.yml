@@ -77,7 +77,15 @@ jobs:
       # below is idempotent and no-ops over anything already present.
       - uses: taiki-e/install-action@v2
         with:
-          tool: just,cargo-nextest,cargo-llvm-cov,cargo-deny,cargo-machete,actionlint
+          tool: just,cargo-nextest,cargo-llvm-cov,cargo-deny,cargo-machete
+      - name: Install workflow linter
+        run: |
+          mkdir -p "$RUNNER_TEMP/actionlint-bin"
+          curl --fail --silent --show-error --location \
+            https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash \
+            -o "$RUNNER_TEMP/download-actionlint.bash"
+          bash "$RUNNER_TEMP/download-actionlint.bash" 1.7.12 "$RUNNER_TEMP/actionlint-bin"
+          echo "$RUNNER_TEMP/actionlint-bin" >> "$GITHUB_PATH"
       - name: Bootstrap
         run: just bootstrap
       - name: Choose the gate tier
@@ -118,7 +126,15 @@ jobs:
       # below is idempotent and no-ops over anything already present.
       - uses: taiki-e/install-action@v2
         with:
-          tool: just,cargo-nextest,cargo-llvm-cov,cargo-deny,cargo-machete,actionlint
+          tool: just,cargo-nextest,cargo-llvm-cov,cargo-deny,cargo-machete
+      - name: Install workflow linter
+        run: |
+          mkdir -p "$RUNNER_TEMP/actionlint-bin"
+          curl --fail --silent --show-error --location \
+            https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash \
+            -o "$RUNNER_TEMP/download-actionlint.bash"
+          bash "$RUNNER_TEMP/download-actionlint.bash" 1.7.12 "$RUNNER_TEMP/actionlint-bin"
+          echo "$RUNNER_TEMP/actionlint-bin" >> "$GITHUB_PATH"
       - name: Bootstrap
         run: just bootstrap
       - name: Choose the gate tier
@@ -170,6 +186,8 @@ jobs:
       - uses: extractions/setup-just@v3
       - name: Build the release binary
         run: just build-release
+      - name: Match npm smoke versions to the built binary
+        run: npm run release:set-npm-version -- "$(target/release/allowlister-terminal-approval-plugin --version)"
       - name: Stage the native binary into its platform package
         # Name the host binary as the release artifact `release:stage-npm` expects,
         # then stage it with the same script the publish workflow uses — host

@@ -158,6 +158,15 @@ test("real classifier subprocess: branch authority and parsed non-version data, 
     '{"name":"example","version":"1.0.1","dependencies":{"other":"1"}}',
   );
   assert.equal(invoke(payload()).isReleaseOnly, true);
+  change(
+    "package.json",
+    '{"dependencies":{"other":"1"},"version":"1.0.1","name":"example"}',
+  );
+  assert.equal(
+    invoke(payload()).isReleaseOnly,
+    true,
+    "JSON object key order is not a semantic field change",
+  );
   change("Cargo.toml", "broken");
   assert.equal(invoke(payload()).macosRequired, true);
   change("source.rs", "fn changed() {}");

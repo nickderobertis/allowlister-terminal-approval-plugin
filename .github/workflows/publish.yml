@@ -46,7 +46,15 @@ jobs:
           cache-bin: false
       - uses: taiki-e/install-action@v2
         with:
-          tool: just,cargo-nextest,cargo-llvm-cov,cargo-deny,cargo-machete,actionlint
+          tool: just,cargo-nextest,cargo-llvm-cov,cargo-deny,cargo-machete
+      - name: Install workflow linter
+        run: |
+          mkdir -p "$RUNNER_TEMP/actionlint-bin"
+          curl --fail --silent --show-error --location \
+            https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash \
+            -o "$RUNNER_TEMP/download-actionlint.bash"
+          bash "$RUNNER_TEMP/download-actionlint.bash" 1.7.12 "$RUNNER_TEMP/actionlint-bin"
+          echo "$RUNNER_TEMP/actionlint-bin" >> "$GITHUB_PATH"
       - name: Bootstrap
         run: just bootstrap
       # The same gate recipe CI runs, as the full sweep: a release event has no

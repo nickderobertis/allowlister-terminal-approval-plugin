@@ -3,7 +3,8 @@
 - The fixed status-check contexts — `test (ubuntu-latest)`, `test
   (ubuntu-24.04-arm)`, `test (macos-latest)`, `install-smoke`, `pr-title`,
   `llmlint` — are a contract with branch protection: keep their job names, and
-  Linux carriers use `always()` and validate every prerequisite result. Only the
+  The `test (macos-latest)` Linux carrier uses `always()` and validates every
+  prerequisite result; the native Linux test jobs remain unconditional. Only the
   semantic release policy may authorize omission of the macOS proof; the carrier
   must describe that omission honestly. Keep every protected context reported.
   `tests/workflow-contract.test.mjs` enforces it.

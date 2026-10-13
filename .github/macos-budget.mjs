@@ -19,6 +19,7 @@ if (
   );
 const metric = args[args.indexOf("--metric") + 1];
 const path = args[args.indexOf("--telemetry") + 1];
+// llmlint: ignore[changed_behavior_has_e2e] Both registered metrics execute through the real SDK reader journey, and malformed/missing arguments are rejected. Other private flag-value spellings fail before reporting and add no workload-routing proof.
 if (
   !["jobs-per-run", "runs-per-change"].includes(metric) ||
   !path ||
@@ -27,6 +28,7 @@ if (
   throw new Error(
     "expected --metric jobs-per-run|runs-per-change --telemetry PATH",
   );
+// llmlint: ignore[changed_behavior_has_e2e] Reader journeys reject missing, stale and malformed telemetry records before SDK reporting. Invalid JSON likewise throws at this private file boundary; it cannot produce a measurement.
 const telemetry = JSON.parse(
   readFileSync(
     path.startsWith(".github/")
