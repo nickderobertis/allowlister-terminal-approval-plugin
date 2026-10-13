@@ -46,7 +46,13 @@ parent_tgz="$(cd "$tmp_dir/parent" && npm pack --silent --pack-destination "$tmp
 npm install --prefix "$tmp_dir/prefix" -g "$tmp_dir/$parent_tgz" --silent
 
 cmd="$tmp_dir/prefix/bin/allowlister-terminal-approval-plugin"
-"$cmd" --version >/dev/null
+# llmlint: ignore[boundary_inputs_validated] CI and release workflows invoke the shared strict-version setter before staging; npm pack/install also validate manifests. This expected value is owned packaging metadata, not a second external version-input boundary.
+expected_version="$(node -e 'console.log(require(process.argv[1]).version)' "$(cd "$packages_root/allowlister-terminal-approval-plugin" && pwd)/package.json")"
+actual_version="$("$cmd" --version)"
+if [[ "$actual_version" != "$expected_version" ]]; then
+  echo "npm package smoke: binary version does not match package $expected_version: $actual_version; rebuild and restage the binary from the matching release tag" >&2
+  exit 1
+fi
 # A static allow defers without any prompt, so this needs no terminal.
 printf '{"current_verdict":"allow","command":"git status","cwd":"/tmp"}' \
   | "$cmd" \
@@ -60,4 +66,5 @@ if [[ "$(head -c 2 "$target")" == "#!" ]]; then
   exit 1
 fi
 
-echo "npm package smoke: ok (native binary on PATH)"
+checksum="$(node -e 'const fs=require("node:fs"),crypto=require("node:crypto"); console.log(crypto.createHash("sha256").update(fs.readFileSync(process.argv[1])).digest("hex"))' "$target")"
+echo "npm package smoke: ok (native binary on PATH) $platform@$expected_version sha256=$checksum"

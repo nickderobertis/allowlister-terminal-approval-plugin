@@ -47,6 +47,14 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: just,cargo-nextest,cargo-llvm-cov,cargo-deny,cargo-machete
+      - name: Install workflow linter
+        run: |
+          mkdir -p "$RUNNER_TEMP/actionlint-bin"
+          curl --fail --silent --show-error --location \
+            https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash \
+            -o "$RUNNER_TEMP/download-actionlint.bash"
+          bash "$RUNNER_TEMP/download-actionlint.bash" 1.7.12 "$RUNNER_TEMP/actionlint-bin"
+          echo "$RUNNER_TEMP/actionlint-bin" >> "$GITHUB_PATH"
       - name: Bootstrap
         run: just bootstrap
       # The same gate recipe CI runs, as the full sweep: a release event has no
@@ -73,12 +81,6 @@ jobs:
           - platform: linux-arm64
             os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-musl
-          - platform: darwin-x64
-            os: macos-latest
-            target: x86_64-apple-darwin
-          - platform: darwin-arm64
-            os: macos-latest
-            target: aarch64-apple-darwin
     steps:
       - uses: actions/checkout@v4
       - name: Add Rust target
@@ -103,8 +105,57 @@ jobs:
           path: dist/artifacts/*
           if-no-files-found: error
 
+  build-darwin:
+    name: build-binary (darwin)
+    needs: test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run release:set-npm-version -- "${GITHUB_REF_NAME#v}"
+      - run: rustup target add x86_64-apple-darwin aarch64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - uses: extractions/setup-just@v3
+      - name: Build and stage both Darwin binaries once
+        run: |
+          just build-release x86_64-apple-darwin
+          just build-release aarch64-apple-darwin
+          mkdir -p dist/artifacts
+          cp target/x86_64-apple-darwin/release/allowlister-terminal-approval-plugin dist/artifacts/allowlister-terminal-approval-plugin-darwin-x64
+          cp target/aarch64-apple-darwin/release/allowlister-terminal-approval-plugin dist/artifacts/allowlister-terminal-approval-plugin-darwin-arm64
+          lipo -verify_arch x86_64 dist/artifacts/allowlister-terminal-approval-plugin-darwin-x64
+          lipo -verify_arch arm64 dist/artifacts/allowlister-terminal-approval-plugin-darwin-arm64
+          npm run release:stage-npm -- dist/artifacts darwin-x64 darwin-arm64
+          cmp dist/artifacts/allowlister-terminal-approval-plugin-darwin-x64 packages/allowlister-terminal-approval-plugin-darwin-x64/bin/allowlister-terminal-approval-plugin
+          cmp dist/artifacts/allowlister-terminal-approval-plugin-darwin-arm64 packages/allowlister-terminal-approval-plugin-darwin-arm64/bin/allowlister-terminal-approval-plugin
+      - name: Install and run the native staged architecture
+        run: |
+          test "$(uname -m)" = arm64
+          softwareupdate --install-rosetta --agree-to-license
+          npm run release:smoke-npm
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          architecture: x64
+      - name: Install and run the x64 staged architecture under Rosetta
+        run: arch -x86_64 bash -c 'npm run release:smoke-npm'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-darwin-x64
+          path: dist/artifacts/allowlister-terminal-approval-plugin-darwin-x64
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-darwin-arm64
+          path: dist/artifacts/allowlister-terminal-approval-plugin-darwin-arm64
+          if-no-files-found: error
+
   github-release:
-    needs: build-binary
+    needs: [build-binary, build-darwin]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -126,7 +177,7 @@ jobs:
             dist/release-artifacts/SHA256SUMS
 
   npm-publish:
-    needs: [build-binary, github-release]
+    needs: [build-binary, build-darwin, github-release]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -141,7 +192,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Set npm package versions from the tag
-        run: node scripts/set-npm-package-version.mjs "${GITHUB_REF_NAME#v}"
+        run: npm run release:set-npm-version -- "${GITHUB_REF_NAME#v}"
       - name: Stage native binaries into the platform packages
         run: npm run release:stage-npm -- dist/release-artifacts
       - name: Smoke-test the packed npm package

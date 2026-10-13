@@ -13,7 +13,16 @@ import { join } from "node:path";
 
 const version = process.argv[2] ?? process.env.PLUGIN_VERSION;
 
-if (!version || !/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)) {
+const pattern = new RegExp(
+  readFileSync(
+    new URL("./release-version-pattern.txt", import.meta.url),
+    "utf8",
+  ).trim(),
+);
+if (!version || version.trim() !== version || !pattern.test(version)) {
+  console.error(
+    `invalid release version ${JSON.stringify(version)}; use strict SemVer without surrounding whitespace (for example 1.2.3-beta.1+build.2)`,
+  );
   console.error("usage: node scripts/set-npm-package-version.mjs <semver>");
   process.exit(1);
 }
@@ -43,4 +52,6 @@ for (const dir of [parent, ...platformPackages]) {
   writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
-console.log(`set version ${version} across ${platformPackages.length + 1} packages`);
+console.log(
+  `set version ${version} across ${platformPackages.length + 1} packages`,
+);

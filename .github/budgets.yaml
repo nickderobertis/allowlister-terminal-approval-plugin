@@ -1,0 +1,29 @@
+schema_version: 1
+budgets:
+  - id: allowlister-terminal-approval-plugin-macos-jobs-per-run
+    description: >-
+      Maximum resolved Mac job instances per workflow run, across all event scenarios,
+      matrices and reusable calls. inner_measure_reason: one run can occupy several
+      shared Mac slots even when the lifecycle run count stays within its bound.
+      The brief explicitly requests both jobs/run and Mac-spending runs/change bounds;
+      the manager approved separate budgets for these two scheduling constraints.
+      No application data work or additional paid scenario is introduced.
+    measure: reported
+    command: [node, macos-budget.mjs, --metric, jobs-per-run, --telemetry, .telemetry/macos-policy.json]
+    unit: jobs
+    direction: max
+    threshold: 1
+    labels: [github-workflows]
+  - id: allowlister-terminal-approval-plugin-macos-runs-per-change
+    description: >-
+      Maximum distinct Mac-spending workflow runs over the complete single-push
+      lifecycle, excluding explicit manual diagnostics. The brief explicitly
+      requests both jobs/run and Mac-spending runs/change bounds; the manager
+      approved separate budgets for these two scheduling constraints. No application
+      data work or additional paid scenario is introduced.
+    measure: reported
+    command: [node, macos-budget.mjs, --metric, runs-per-change, --telemetry, .telemetry/macos-policy.json]
+    unit: runs
+    direction: max
+    threshold: 2
+    labels: [github-workflows]

@@ -17,7 +17,26 @@
       "options": {
         "command": "npm test"
       },
-      "//": "The root package.json's `test` script — the one definition of the carrier's suite, which the install-smoke job runs too."
+      "//": "The root package.json's `test` script \u2014 the one definition of the carrier's suite, which the install-smoke job runs too."
+    },
+    "release-check": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "node --test packages/allowlister-terminal-approval-plugin/test/release.journey.mjs"
+      },
+      "//": "New native packaging proof runs on Linux CI; Mac PR CI reports an explicit skip because publish runs both real Darwin installs. Existing Mac test assertions are unchanged.",
+      "inputs": [
+        "default"
+      ]
     }
+  },
+  "namedInputs": {
+    "default": [
+      "{projectRoot}/**/*",
+      "sharedGlobals",
+      "{workspaceRoot}/.github/workflows/ci.yml",
+      "{workspaceRoot}/.github/workflows/publish.yml"
+    ]
   }
 }

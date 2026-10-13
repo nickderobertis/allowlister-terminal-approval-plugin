@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      diagnostic:
+        description: Run the macOS diagnostic lane
+        type: boolean
+        default: false
 
 # Least privilege: CI only needs to read the repository.
 permissions:
@@ -20,14 +26,26 @@ env:
   GITHUB_TOKEN: ${{ github.token }}
 
 jobs:
-  # The gate: `just bootstrap` then `just check` at the tier
-  # .github/scripts/gate-tier.mjs routes the event to.
-  #
-  # Matrix over the unix platforms the binary ships to. The context names
-  # (`test (ubuntu-latest)`, ...) are the protected required checks — keep them
-  # stable. No `if`, `needs` or path filter: each cell reports on every pull
-  # request, including one whose targets are all unaffected (Nx runs nothing and
-  # the job passes). .github/tests/workflow-contract.test.mjs enforces this.
+  macos-policy:
+    runs-on: ubuntu-latest
+    outputs:
+      macosRequired: ${{ steps.policy.outputs.macosRequired }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - id: policy
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node .github/macos-policy.mjs classify --event "$GITHUB_EVENT_PATH" --base "$BASE" --head "$HEAD"
+
   test:
     name: test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -35,7 +53,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm]
     steps:
       # Full history: the affected tier resolves its merge base from it.
       - uses: actions/checkout@v4
@@ -60,6 +78,14 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: just,cargo-nextest,cargo-llvm-cov,cargo-deny,cargo-machete
+      - name: Install workflow linter
+        run: |
+          mkdir -p "$RUNNER_TEMP/actionlint-bin"
+          curl --fail --silent --show-error --location \
+            https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash \
+            -o "$RUNNER_TEMP/download-actionlint.bash"
+          bash "$RUNNER_TEMP/download-actionlint.bash" 1.7.12 "$RUNNER_TEMP/actionlint-bin"
+          echo "$RUNNER_TEMP/actionlint-bin" >> "$GITHUB_PATH"
       - name: Bootstrap
         run: just bootstrap
       - name: Choose the gate tier
@@ -70,6 +96,72 @@ jobs:
           TIER: ${{ steps.tier.outputs.tier }}
           NX_BASE: ${{ steps.tier.outputs.base }}
         run: just check "$TIER"
+
+  macos-test:
+    name: macOS PR proof
+    needs: macos-policy
+    if: needs.macos-policy.outputs.macosRequired == 'true' || (github.event_name == 'workflow_dispatch' && inputs.diagnostic)
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      # Full history: the affected tier resolves its merge base from it.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Node runs Nx, the orchestrator every gate recipe delegates to. This is the
+      # dev toolchain's Node; install-smoke and publish keep Node 20 because they
+      # prove the npm carrier on its `engines` floor.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install pinned toolchain
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # Don't cache ~/.cargo/bin: a stale cached tool binary collides with
+          # bootstrap's reinstall. Reinstalling the prebuilt each run is cheap.
+          cache-bin: false
+      # Prebuilt binaries for the cargo subcommands the gate needs; `bootstrap`
+      # below is idempotent and no-ops over anything already present.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: just,cargo-nextest,cargo-llvm-cov,cargo-deny,cargo-machete
+      - name: Install workflow linter
+        run: |
+          mkdir -p "$RUNNER_TEMP/actionlint-bin"
+          curl --fail --silent --show-error --location \
+            https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash \
+            -o "$RUNNER_TEMP/download-actionlint.bash"
+          bash "$RUNNER_TEMP/download-actionlint.bash" 1.7.12 "$RUNNER_TEMP/actionlint-bin"
+          echo "$RUNNER_TEMP/actionlint-bin" >> "$GITHUB_PATH"
+      - name: Bootstrap
+        run: just bootstrap
+      - name: Choose the gate tier
+        id: tier
+        run: node .github/scripts/gate-tier.mjs
+      - name: Gate (just check)
+        env:
+          TIER: ${{ steps.tier.outputs.tier }}
+          NX_BASE: ${{ steps.tier.outputs.base }}
+        run: just check "$TIER"
+
+  macos-result:
+    name: test (macos-latest)
+    needs: [macos-policy, macos-test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Report the required macOS context
+        env:
+          MACOS_REQUIRED: ${{ needs.macos-policy.outputs.macosRequired }}
+          POLICY_RESULT: ${{ needs.macos-policy.result }}
+          PROOF_RESULT: ${{ needs.macos-test.result }}
+        run: node .github/required-result.mjs "$POLICY_RESULT" "$PROOF_RESULT"
 
   # Prove the npm install path a user actually takes: build the host binary,
   # stage it into the matching platform package, unit-test the JS resolver, then
@@ -94,6 +186,8 @@ jobs:
       - uses: extractions/setup-just@v3
       - name: Build the release binary
         run: just build-release
+      - name: Match npm smoke versions to the built binary
+        run: npm run release:set-npm-version -- "$(target/release/allowlister-terminal-approval-plugin --version)"
       - name: Stage the native binary into its platform package
         # Name the host binary as the release artifact `release:stage-npm` expects,
         # then stage it with the same script the publish workflow uses — host
