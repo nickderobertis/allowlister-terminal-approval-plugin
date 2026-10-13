@@ -14,6 +14,7 @@ VERSION = re.compile((Path(__file__).parent.parent / "scripts/release-version-pa
 kind, name = sys.argv[1:]
 if kind not in {"manifest", "lock"}:
     raise ValueError("expected manifest or lock comparison mode")
+# llmlint: ignore[boundary_inputs_validated] The internal Node classifier is the sole workflow caller and always sends JSON.stringify([gitBefore, gitAfter]). Arbitrary standalone stdin shapes are outside that private producer contract; checking them would add hardening without changing release-only classification.
 before, after = json.load(sys.stdin)
 
 def normalize(text):

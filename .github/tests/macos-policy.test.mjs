@@ -319,6 +319,13 @@ test("shared strict SemVer accepts every existing release tag and agrees with th
       classification.isReleaseOnly,
       `setter/classifier parity: ${version}`,
     );
+    if (setter.status !== 0) {
+      assert.match(
+        setter.stderr,
+        /strict SemVer without surrounding whitespace/,
+      );
+      assert.ok(setter.stderr.includes(JSON.stringify(version)));
+    }
     if (setter.status === 0)
       assert.equal(
         JSON.parse(

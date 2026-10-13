@@ -108,7 +108,7 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: node scripts/set-npm-package-version.mjs "${GITHUB_REF_NAME#v}"
+      - run: npm run release:set-npm-version -- "${GITHUB_REF_NAME#v}"
       - run: rustup target add x86_64-apple-darwin aarch64-apple-darwin
       - uses: Swatinem/rust-cache@v2
       - uses: extractions/setup-just@v3
@@ -121,20 +121,20 @@ jobs:
           cp target/aarch64-apple-darwin/release/allowlister-terminal-approval-plugin dist/artifacts/allowlister-terminal-approval-plugin-darwin-arm64
           lipo -verify_arch x86_64 dist/artifacts/allowlister-terminal-approval-plugin-darwin-x64
           lipo -verify_arch arm64 dist/artifacts/allowlister-terminal-approval-plugin-darwin-arm64
-          node scripts/stage-npm-package.mjs dist/artifacts darwin-x64 darwin-arm64
+          npm run release:stage-npm -- dist/artifacts darwin-x64 darwin-arm64
           cmp dist/artifacts/allowlister-terminal-approval-plugin-darwin-x64 packages/allowlister-terminal-approval-plugin-darwin-x64/bin/allowlister-terminal-approval-plugin
           cmp dist/artifacts/allowlister-terminal-approval-plugin-darwin-arm64 packages/allowlister-terminal-approval-plugin-darwin-arm64/bin/allowlister-terminal-approval-plugin
       - name: Install and run the native staged architecture
         run: |
           test "$(uname -m)" = arm64
           softwareupdate --install-rosetta --agree-to-license
-          bash scripts/smoke-npm-package.sh
+          npm run release:smoke-npm
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           architecture: x64
       - name: Install and run the x64 staged architecture under Rosetta
-        run: arch -x86_64 bash scripts/smoke-npm-package.sh
+        run: arch -x86_64 bash -c 'npm run release:smoke-npm'
       - uses: actions/upload-artifact@v4
         with:
           name: binary-darwin-x64
@@ -184,7 +184,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Set npm package versions from the tag
-        run: node scripts/set-npm-package-version.mjs "${GITHUB_REF_NAME#v}"
+        run: npm run release:set-npm-version -- "${GITHUB_REF_NAME#v}"
       - name: Stage native binaries into the platform packages
         run: npm run release:stage-npm -- dist/release-artifacts
       - name: Smoke-test the packed npm package

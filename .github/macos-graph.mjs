@@ -56,19 +56,29 @@ export function interpolate(value, context) {
 }
 export function matrix(job) {
   const spec = job.strategy?.matrix;
-  if (!spec) return [{}];
-  if (typeof spec !== "object") throw new Error("unresolved dynamic matrix");
+  if (spec === undefined) return [{}];
+  if (
+    !spec ||
+    typeof spec !== "object" ||
+    Array.isArray(spec) ||
+    !Object.keys(spec).length
+  )
+    throw new Error("unresolved dynamic matrix");
   let rows = [{}];
   for (const [key, values] of Object.entries(spec).filter(
     ([key]) => !["include", "exclude"].includes(key),
   )) {
-    if (!Array.isArray(values)) throw new Error(`unresolved matrix ${key}`);
+    if (!Array.isArray(values) || !values.length)
+      throw new Error(`unresolved matrix ${key}`);
     rows = rows.flatMap((row) =>
       values.map((value) => ({ ...row, [key]: value })),
     );
   }
-  if (Object.keys(spec).every((k) => ["include", "exclude"].includes(k)))
-    return (spec.include ?? []).map((row) => ({ ...row }));
+  if (Object.keys(spec).every((k) => ["include", "exclude"].includes(k))) {
+    if (!Array.isArray(spec.include) || !spec.include.length)
+      throw new Error("unresolved empty matrix");
+    return spec.include.map((row) => ({ ...row }));
+  }
   rows = rows.filter(
     (row) =>
       !spec.exclude?.some((ex) =>
@@ -153,7 +163,10 @@ export function resolve(file, event, policy, stack = []) {
       vars: { PUBLISH_TO_CRATES_IO: event.crates ? "true" : "false" },
     };
     const enabled =
-      !job.if || expression(job.if, context).coerceString() === "true";
+      job.if === undefined ||
+      (typeof job.if === "boolean"
+        ? job.if
+        : expression(job.if, context).coerceString() === "true");
     if (job.uses) {
       if (!job.uses.startsWith("./.github/workflows/"))
         throw new Error(`unresolved reusable call ${job.uses}`);

@@ -444,6 +444,24 @@ test("real SDK measurement commands consume writer output and reject stale/malfo
   }
 });
 test("unresolved runner/call expressions fail instead of reporting zero", () => {
+  for (const spec of [
+    [],
+    {},
+    null,
+    false,
+    "${{ inputs.matrix }}",
+    { os: [] },
+    { include: [] },
+  ])
+    assert.throws(() => matrix({ strategy: { matrix: spec } }), /unresolved/);
+  assert.deepEqual(matrix({}), [{}], "no matrix is one ordinary job instance");
+  for (const [config, event] of [
+    [{ branches: ["main"] }, { name: "push", branch: "other" }],
+    [{ tags: ["v1.0.0"] }, { name: "push", tag: "v2.0.0" }],
+    [{ types: ["published"] }, { name: "release", action: "created" }],
+    [{ workflows: ["publish"] }, { name: "workflow_run", upstream: "CI" }],
+  ])
+    assert.equal(triggered({ on: { [event.name]: config } }, event), false);
   workflows["invalid.yml"] = {
     jobs: { bad: { "runs-on": "${{ mystery.runner }}" } },
   };
@@ -536,6 +554,16 @@ test("unresolved runner/call expressions fail instead of reporting zero", () => 
       ["macos-latest", false],
     ],
   );
+  for (const condition of [false, "false"]) {
+    workflows["invalid.yml"].jobs.call.if = condition;
+    assert.ok(
+      resolve("invalid.yml", { name: "push" }, {}).every(
+        (row) => !row.enabled && !row.macos,
+      ),
+      "disabled caller suppresses every nested runner",
+    );
+  }
+  delete workflows["invalid.yml"].jobs.call.if;
   workflows["invalid.yml"].jobs.call.with = { diagnostic: true };
   assert.throws(
     () => resolve("invalid.yml", { name: "push" }, {}),
@@ -592,9 +620,9 @@ test("release targets and exact-tag artifact dependencies preserve every platfor
   }
   assert.match(
     script,
-    /stage-npm-package.mjs dist\/artifacts darwin-x64 darwin-arm64/,
+    /release:stage-npm -- dist\/artifacts darwin-x64 darwin-arm64/,
   );
-  assert.match(script, /arch -x86_64 bash scripts\/smoke-npm-package.sh/);
+  assert.match(script, /arch -x86_64 bash -c 'npm run release:smoke-npm'/);
   assert.match(script, /test "\$\(uname -m\)" = arm64/);
   assert.match(
     script,

@@ -20,6 +20,9 @@ const pattern = new RegExp(
   ).trim(),
 );
 if (!version || version.trim() !== version || !pattern.test(version)) {
+  console.error(
+    `invalid release version ${JSON.stringify(version)}; use strict SemVer without surrounding whitespace (for example 1.2.3-beta.1+build.2)`,
+  );
   console.error("usage: node scripts/set-npm-package-version.mjs <semver>");
   process.exit(1);
 }

@@ -59,6 +59,7 @@ test("release builds, stages, packs, installs and runs the real native artifact;
       encoding: "utf8",
     });
     assert.equal(build.status, 0, build.stderr);
+    cpSync(join(repo, "package.json"), join(dir, "package.json"));
     for (const path of ["packages", "scripts"])
       cpSync(join(repo, path), join(dir, path), { recursive: true });
     mkdirSync(join(dir, "dist/artifacts"), { recursive: true });
@@ -73,8 +74,8 @@ test("release builds, stages, packs, installs and runs the real native artifact;
         encoding: "utf8",
         env: { ...process.env, npm_config_cache: join(dir, "cache") },
       });
-    run("node", ["scripts/set-npm-package-version.mjs", cargoVersion]);
-    run("node", ["scripts/stage-npm-package.mjs", "dist/artifacts", platform]);
+    run("npm", ["run", "release:set-npm-version", "--", cargoVersion]);
+    run("npm", ["run", "release:stage-npm", "--", "dist/artifacts", platform]);
     const packageDir = `packages/${binary}-${platform}`;
     const packed = run("npm", [
       "pack",
@@ -113,11 +114,11 @@ test("release builds, stages, packs, installs and runs the real native artifact;
     assert.deepEqual(manifest.os, [process.platform]);
     assert.deepEqual(manifest.cpu, [process.arch]);
     assert.match(
-      run("bash", ["scripts/smoke-npm-package.sh"]),
+      run("npm", ["run", "release:smoke-npm"]),
       /ok \(native binary on PATH\)/,
     );
-    run("node", ["scripts/set-npm-package-version.mjs", "9.9.9"]);
-    const mismatch = spawnSync("bash", ["scripts/smoke-npm-package.sh"], {
+    run("npm", ["run", "release:set-npm-version", "--", "9.9.9"]);
+    const mismatch = spawnSync("npm", ["run", "release:smoke-npm"], {
       cwd: dir,
       encoding: "utf8",
       env: { ...process.env, npm_config_cache: join(dir, "cache") },
@@ -128,10 +129,10 @@ test("release builds, stages, packs, installs and runs the real native artifact;
       "a package tag cannot mislabel its native binary",
     );
     assert.match(mismatch.stderr, /binary version does not match package/);
-    run("node", ["scripts/set-npm-package-version.mjs", cargoVersion]);
+    run("npm", ["run", "release:set-npm-version", "--", cargoVersion]);
     // The real installer must reject a corrupt native artifact; no boundary is mocked.
     writeFileSync(join(dir, packageDir, "bin", binary), "not an executable\n");
-    const bad = spawnSync("bash", ["scripts/smoke-npm-package.sh"], {
+    const bad = spawnSync("npm", ["run", "release:smoke-npm"], {
       cwd: dir,
       encoding: "utf8",
       env: { ...process.env, npm_config_cache: join(dir, "cache") },
