@@ -38,8 +38,13 @@ fail() {
   exit 1
 }
 
-work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+# The entry lists each step leaves, kept as the run's evidence: alt (what the
+# alternative build created), ordinary (every other entry before the timed pass),
+# removed (what the timed pass removed) and the last build log. Not a profile
+# directory, so the pruner never touches it.
+work=target/pool-maintenance-measure
+rm -rf "$work"
+mkdir -p "$work"
 
 # Every build entry the pruner selects from: <profile>/{deps,.fingerprint,build,incremental}/*
 # under each profile directory (one holding .fingerprint/) in target/, one path per line.
@@ -108,4 +113,4 @@ if [ -s "$work/ordinary-lost" ] || [ -s "$work/foreign" ]; then
   fail "the timed pass removed entries above that the alternative build did not create"
 fi
 [ -s "$work/removed" ] || fail "the timed pass removed none of the alternative build's entries"
-echo "measure: timed pass removed $(wc -l <"$work/removed") entries, all from the alternative build; all $(wc -l <"$work/ordinary") ordinary entries remain" >&2
+echo "measure: timed pass removed $(wc -l <"$work/removed") entries, all from the alternative build; all $(wc -l <"$work/ordinary") ordinary entries remain (lists in $work)" >&2
