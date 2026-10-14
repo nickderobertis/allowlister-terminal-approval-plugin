@@ -81,7 +81,7 @@ entries >"$work/before"
 CARGO_PROFILE_DEV_DEBUG="$ALT_PROFILE_DEBUG" gate_build
 entries >"$work/after-alt"
 LC_ALL=C comm -13 "$work/before" "$work/after-alt" >"$work/alt"
-[ -s "$work/alt" ] || fail "the alternative build created no new build entries; nothing would be superseded"
+[ -s "$work/alt" ] || fail "the alternative build created no new build entries, so its builds are already here within the window (an interrupted run leaves them); remove target/llvm-cov-target, then re-run"
 stamp=$(($(date +%s) - BACKDATE_SECONDS))
 if [ -s "$work/before" ]; then
   oldest=$(xargs -d '\n' -a "$work/before" bash -c 'find "$@" -printf "%T@\n"' _ | sort -n | sed -n 1p)
