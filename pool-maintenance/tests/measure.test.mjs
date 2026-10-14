@@ -176,7 +176,7 @@ function refused(fault, { setup = () => {}, beforeTimedPass = true, env = {} } =
 test("a failing gate build fails measure.sh by name, and nothing is reported", linuxOnly, () => {
   const stderr = refused("alt-build");
   assert.match(stderr, /could not compile fixture/);
-  assert.match(stderr, /measure: the gate's test build of allowlister-terminal-approval-plugin failed \(above\); fix that build, then re-run/);
+  assert.match(stderr, /measure: the gate's test build of fixture failed \(above\); fix that build, then re-run/);
 });
 
 test("a missing pruner fails the backlog pass, naming bootstrap", linuxOnly, () => {

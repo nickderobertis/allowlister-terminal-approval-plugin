@@ -6,7 +6,7 @@
 #
 #   a. run the declared maintenance once, untimed, to clear any backlog;
 #   b. build the test targets the way the gate does (tools/coverage/coverage.sh,
-#      per crate) under an alternative profile (line-tables debuginfo) that gives
+#      per workspace member) under an alternative profile (line-tables debuginfo) that gives
 #      every crate new metadata hashes in the same profile directory, then
 #      backdate exactly the entries that build created past the 2-day window;
 #   c. run the ordinary gate build, so each unit's newest build is the ordinary one;
@@ -29,7 +29,6 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly ROOT
 cd "$ROOT"
-readonly CRATES=(allowlister-terminal-approval-plugin terminal-approval-e2e)
 readonly ALT_PROFILE_DEBUG=line-tables-only
 # Past the 2-day window `pool-maintenance` keeps.
 readonly BACKDATE_SECONDS=$((3 * 24 * 3600))
@@ -57,6 +56,15 @@ entries() {
       [ -d "$profile/$kind" ] && find "$profile/$kind" -mindepth 1 -maxdepth 1
     done
   done | LC_ALL=C sort
+}
+
+# Every workspace member, as the gate's per-crate `test` targets build them.
+members() {
+  cargo metadata --format-version 1 --no-deps --offline | node -e '
+    const m = JSON.parse(require("fs").readFileSync(0, "utf8"));
+    const ids = new Set(m.workspace_members);
+    console.log(m.packages.filter((p) => ids.has(p.id)).map((p) => p.name).join("\n"));
+  '
 }
 
 gate_build() {
@@ -90,6 +98,10 @@ fi
 started=$(date +%s.%N)
 maintain backlog.log "untimed backlog pass"
 backlog_seconds=$(awk -v a="$started" -v b="$(date +%s.%N)" 'BEGIN { printf "%.3f", b - a }')
+
+mapfile -t CRATES < <(members) && [ "${#CRATES[@]}" -gt 0 ] && [ -n "${CRATES[0]}" ] \
+  || fail "could not read the workspace members from cargo metadata (above); fix the manifests it names, then re-run"
+readonly CRATES
 
 # b. The alternative build, backdated past the window. Its time sits below every
 #    entry already present, so no ordinary build that step c leaves untouched can
