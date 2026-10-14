@@ -97,6 +97,7 @@ jobs:
           NX_BASE: ${{ steps.tier.outputs.base }}
         run: just check "$TIER"
 
+  # llmlint: ignore-block[no_second_broader_sweep_over_an_already_gated_commit] this job runs no gating target and no sweep: only pool-maintenance:budgets-host, one host budget measurement that the declared-maintenance task requires on the release PR after its gate; its two builds construct the superseded-build workload the timed pruner pass removes, and the figure is that pass alone.
   # The pool-maintenance pass-time budget (pool-maintenance/budgets.yaml) builds
   # the workspace twice, so only the release PR's full sweep pays for it: after
   # every gate leg, on the tier the router picks; on any other event it stops
@@ -134,6 +135,7 @@ jobs:
       - name: Pool-maintenance budget
         if: steps.tier.outputs.tier == 'all'
         run: just pool-maintenance-budget
+  # llmlint: ignore-end[no_second_broader_sweep_over_an_already_gated_commit]
 
   macos-test:
     name: macOS PR proof
