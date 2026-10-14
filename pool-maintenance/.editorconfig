@@ -1,0 +1,9 @@
+# The shell style pool-maintenance's format and format-check targets hold its
+# scripts to: shfmt reads these keys, so the targets pass it no flags.
+root = true
+
+[*.sh]
+indent_style = space
+indent_size = 2
+binary_next_line = true
+switch_case_indent = true

@@ -71,7 +71,10 @@ gate_build() {
   local crate
   for crate in "${CRATES[@]}"; do
     bash tools/coverage/coverage.sh test "$crate" >"$work/build.log" 2>&1 \
-      || { cat "$work/build.log" >&2; fail "the gate's test build of $crate failed (above); fix that build, then re-run"; }
+      || {
+        cat "$work/build.log" >&2
+        fail "the gate's test build of $crate failed (above); fix that build, then re-run"
+      }
   done
 }
 
@@ -80,7 +83,10 @@ maintain() {
   local log="$1" what="$2"
   shift 2
   env "$@" just pool-maintenance >"$work/$log" 2>&1 \
-    || { cat "$work/$log" >&2; fail "the $what failed (above); fix what the pruner reports (or install it with just bootstrap if it is missing), then re-run"; }
+    || {
+      cat "$work/$log" >&2
+      fail "the $what failed (above); fix what the pruner reports (or install it with just bootstrap if it is missing), then re-run"
+    }
 }
 
 # Only the timed pass may report. Its result path comes from onebudgetspec check:

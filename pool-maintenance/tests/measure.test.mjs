@@ -10,7 +10,10 @@
 //     build and nothing of the ordinary one; each way a step can fail, or the
 //     workload can differ from the budget's, fails it without a report;
 //   * `just install-prune-superseded` (bootstrap's step) installs exactly the
-//     pinned release, with stand-ins for cargo and the installed pruner.
+//     pinned release, with stand-ins for cargo and the installed pruner;
+//   * the project's format-check command, run as project.json states it, passes
+//     this tree and fails a misformatted script with its diff; and
+//     `just install-shfmt` installs only a binary carrying the pinned checksum.
 //
 // Linux only, as measure.sh is (GNU find, touch and date).
 import assert from "node:assert/strict";
@@ -245,3 +248,60 @@ test("bootstrap installs exactly the pinned pruner, replacing another version, a
   assert.deepEqual(install("0.0.1"), installs, "another version: replaced");
   assert.deepEqual(install(pin), [], "the pinned version: left alone");
 });
+
+const project = JSON.parse(readFileSync(join(repo, "pool-maintenance/project.json"), "utf8"));
+const realJust = () => run("bash", ["-c", "command -v just"]).stdout.trim();
+
+test("format-check passes this project's scripts and fails a misformatted one with the diff", () => {
+  const command = project.targets["format-check"].options.command;
+  const clean = run("bash", ["-c", command], { cwd: repo });
+  assert.equal(clean.status, 0, clean.stdout + clean.stderr);
+  // A scratch copy of the project's files, one script then put off-style.
+  const root = mkdtempSync(join(tmpdir(), "pool-format-"));
+  scratch.push(root);
+  mkdirSync(join(root, "pool-maintenance"));
+  for (const f of [".editorconfig", "measure.sh"]) copyFileSync(join(repo, "pool-maintenance", f), join(root, "pool-maintenance", f));
+  assert.equal(run("bash", ["-c", command], { cwd: root }).status, 0, "the copy is formatted");
+  const script = join(root, "pool-maintenance/measure.sh");
+  writeFileSync(script, readFileSync(script, "utf8").replace(/^ {2}local crate$/m, "\tlocal crate"));
+  const red = run("bash", ["-c", command], { cwd: root });
+  assert.notEqual(red.status, 0, "a misformatted script fails format-check");
+  // Under Nx (FORCE_COLOR) shfmt colours the diff; read it as plain text.
+  const diff = red.stdout.replace(/\x1b\[[0-9;]*m/g, "");
+  assert.match(diff, /^-\tlocal crate$/m);
+  assert.match(diff, /^\+ {2}local crate$/m);
+});
+
+/** `just install-shfmt` with a stand-in curl that serves `served` and no shfmt on PATH; returns the run and its install dir. */
+function installShfmt(served) {
+  const dir = mkdtempSync(join(tmpdir(), "shfmt-install-"));
+  scratch.push(dir);
+  mkdirSync(join(dir, "bin"));
+  writeFileSync(join(dir, "served"), served);
+  writeFileSync(join(dir, "bin/curl"), `#!/usr/bin/env bash\nwhile [ "$1" != -o ]; do shift; done\ncp ${JSON.stringify(join(dir, "served"))} "$2"\n`);
+  chmodSync(join(dir, "bin/curl"), 0o755);
+  const path = [join(dir, "bin"), join(dir, "cargo-home/bin"), ...process.env.PATH.split(":").filter((d) => !existsSync(join(d, "shfmt")))].join(":");
+  const out = run(realJust(), ["install-shfmt"], { cwd: repo, env: { ...process.env, PATH: path, CARGO_HOME: join(dir, "cargo-home") } });
+  return { ...out, installed: join(dir, "cargo-home/bin/shfmt") };
+}
+
+test("install-shfmt refuses a download whose checksum is not the pinned one, installing nothing", () => {
+  const out = installShfmt("#!/bin/sh\necho v0.0.0\n");
+  assert.equal(out.status, 1, out.stderr);
+  assert.match(out.stderr, /install-shfmt: the downloaded shfmt_v[\d.]+_\w+ has SHA-256 [0-9a-f]{64}, not the pinned [0-9a-f]{64}; nothing was installed/);
+  assert.ok(!existsSync(out.installed));
+});
+
+const shfmtPath = run("bash", ["-c", "command -v shfmt"]).stdout.trim();
+test(
+  "install-shfmt installs the pinned release's binary into cargo's bin, where PATH finds it",
+  { skip: !(process.platform === "linux" && process.arch === "x64" && shfmtPath) && "needs the pinned linux_amd64 shfmt on PATH to serve" },
+  () => {
+    const pin = readFileSync(join(repo, "justfile"), "utf8").match(/^shfmt-version := "([^"]+)"$/m)?.[1];
+    assert.equal(run(shfmtPath, ["--version"]).stdout.trim(), `v${pin}`, "the shfmt on PATH is the pinned release");
+    const out = installShfmt(readFileSync(shfmtPath));
+    assert.equal(out.status, 0, out.stderr);
+    assert.equal(out.stderr, "");
+    assert.equal(run(out.installed, ["--version"]).stdout.trim(), `v${pin}`);
+  },
+);

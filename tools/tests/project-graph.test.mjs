@@ -116,11 +116,12 @@ test("the carrier's suite is a target of the full sweep and of the gate", () => 
   }
 });
 
-test("no gate tier runs the pool-maintenance measurement or its budget check; its own lint and test do run", () => {
-  const measured = (tasks) => tasks.filter((t) => t.startsWith("pool-maintenance:") && !["pool-maintenance:lint", "pool-maintenance:test"].includes(t));
+test("no gate tier runs the pool-maintenance measurement or its budget check; its own format-check, lint and test do run", () => {
+  const cheap = ["pool-maintenance:format-check", "pool-maintenance:lint", "pool-maintenance:test"];
+  const measured = (tasks) => tasks.filter((t) => t.startsWith("pool-maintenance:") && !cheap.includes(t));
   const sweep = Object.keys(taskGraph("run-many", ...recipeArgs("check")));
   assert.deepEqual(measured(sweep), [], "`just check all`");
-  assert.ok(sweep.includes("pool-maintenance:test"), `the sweep tests measure.sh (got ${sweep})`);
+  for (const t of cheap) assert.ok(sweep.includes(t), `the sweep runs ${t} (got ${sweep})`);
   // One commit per change: sources, the maintenance files, and project configuration.
   const edits = {
     "src/prompt.rs": (t) => `${t}\n// touched\n`,
@@ -137,7 +138,7 @@ test("no gate tier runs the pool-maintenance measurement or its budget check; it
     git(dir, "commit", "-q", "-am", "change");
     const tasks = Object.keys(taskGraph("affected", `--base=${base}`, "--head=HEAD", ...recipeArgs("check")));
     assert.deepEqual(measured(tasks), [], `\`just check\` after a change to ${file}`);
-    if (file.startsWith("pool-maintenance/")) assert.ok(tasks.includes("pool-maintenance:test"), `${file} reaches measure.sh's test (got ${tasks})`);
+    if (file.startsWith("pool-maintenance/")) for (const t of cheap) assert.ok(tasks.includes(t), `${file} reaches ${t} (got ${tasks})`);
   }
   git(dir, "reset", "-q", "--hard", base);
   assert.deepEqual(Object.keys(taskGraph("run", "pool-maintenance:budgets-host")), ["pool-maintenance:budgets-host"]);

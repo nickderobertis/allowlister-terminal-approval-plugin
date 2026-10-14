@@ -22,6 +22,14 @@ machete-version := "0.9.2"
 # The cargo-prune-superseded release `pool-maintenance` runs; bootstrap installs
 # exactly this one (onevcs's pool maintenance runs it on hosts).
 prune-superseded-version := "0.1.1"
+# shfmt, the shell formatter pool-maintenance's format targets run, and the
+# SHA-256 of each prebuilt release binary bootstrap may download (the release
+# publishes no checksums of its own).
+shfmt-version := "3.14.1"
+shfmt-sha256-linux-amd64 := "76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf"
+shfmt-sha256-linux-arm64 := "5f2db09dae91fca848f7adbdd014632e921a383863a2ad7e0450ad3aba0c6489"
+shfmt-sha256-darwin-amd64 := "d33eee0da0f92835b3562e9767a05cee7e4eaeef47daa03bfd09da17b4b590a6"
+shfmt-sha256-darwin-arm64 := "b7c872db63553ccffc7253aba3ed7d4885a27d83f1ba567b1138c6315a5847e5"
 
 _default:
     @just --list --unsorted
@@ -48,6 +56,7 @@ bootstrap:
     install_tool "cargo-deny@{{deny-version}}"
     install_tool "cargo-machete@{{machete-version}}"
     just install-prune-superseded
+    just install-shfmt
     # lefthook is a Go binary (no cargo source build): install the prebuilt if
     # reachable, otherwise warn rather than fail.
     if ! command -v lefthook >/dev/null && command -v cargo-binstall >/dev/null; then
@@ -74,6 +83,36 @@ install-prune-superseded:
     set -euo pipefail
     [ "$(cargo-prune-superseded --version 2>/dev/null)" != "cargo-prune-superseded {{prune-superseded-version}}" ] || exit 0
     cargo +stable install --locked cargo-prune-superseded --version "={{prune-superseded-version}}"
+
+# Install shfmt at exactly the pinned release into cargo's bin directory, a no-op
+# when that version is already on PATH. It is a Go binary (no cargo source
+# build), so this downloads the release's prebuilt one and refuses it unless its
+# SHA-256 is the pinned one.
+[private]
+install-shfmt:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [ "$(shfmt --version 2>/dev/null)" != "v{{shfmt-version}}" ] || exit 0
+    case "$(uname -s)/$(uname -m)" in
+        Linux/x86_64) asset=linux_amd64 sum={{shfmt-sha256-linux-amd64}} ;;
+        Linux/aarch64 | Linux/arm64) asset=linux_arm64 sum={{shfmt-sha256-linux-arm64}} ;;
+        Darwin/x86_64) asset=darwin_amd64 sum={{shfmt-sha256-darwin-amd64}} ;;
+        Darwin/arm64) asset=darwin_arm64 sum={{shfmt-sha256-darwin-arm64}} ;;
+        *) echo "install-shfmt: no pinned shfmt build for $(uname -sm); install shfmt v{{shfmt-version}} on PATH yourself" >&2; exit 1 ;;
+    esac
+    tmp="$(mktemp -d)"
+    trap 'rm -rf "$tmp"' EXIT
+    curl -fsSL -o "$tmp/shfmt" "https://github.com/mvdan/sh/releases/download/v{{shfmt-version}}/shfmt_v{{shfmt-version}}_${asset}"
+    got="$(shasum -a 256 "$tmp/shfmt" | cut -d' ' -f1)"
+    if [ "$got" != "$sum" ]; then
+        echo "install-shfmt: the downloaded shfmt_v{{shfmt-version}}_${asset} has SHA-256 $got, not the pinned $sum; nothing was installed — re-run, and if it persists, check the release before changing the pin" >&2
+        exit 1
+    fi
+    bin="${CARGO_HOME:-$HOME/.cargo}/bin"
+    mkdir -p "$bin"
+    install -m 755 "$tmp/shfmt" "$bin/shfmt"
+    [ "$(shfmt --version 2>/dev/null)" = "v{{shfmt-version}}" ] \
+        || echo "! installed shfmt v{{shfmt-version}} to $bin, but $(command -v shfmt || echo 'no shfmt') comes first on PATH" >&2
 
 # Fetch locked dependencies and confirm the pinned toolchain is present.
 sync:
