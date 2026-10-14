@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { binarySpecifier, platformPackage } from "../lib/platform.mjs";
+import { binarySpecifier, platformPackage, UnsupportedPlatformError } from "../lib/platform.mjs";
 
 test("maps every supported unix platform to its package and binary", () => {
   const cases = [
     ["linux", "x64", "allowlister-terminal-approval-plugin-linux-x64"],
     ["linux", "arm64", "allowlister-terminal-approval-plugin-linux-arm64"],
-    ["darwin", "x64", "allowlister-terminal-approval-plugin-darwin-x64"],
     ["darwin", "arm64", "allowlister-terminal-approval-plugin-darwin-arm64"],
   ];
   for (const [platform, arch, pkg] of cases) {
@@ -25,4 +24,15 @@ test("maps every supported unix platform to its package and binary", () => {
 test("throws on an unsupported platform (the terminal experience is unix-only)", () => {
   assert.throws(() => platformPackage("win32", "x64"), /Unsupported platform: win32-x64/);
   assert.throws(() => platformPackage("linux", "ia32"), /Unsupported platform: linux-ia32/);
+});
+
+test("refuses Intel macOS as discontinued rather than mapping it to a package", () => {
+  assert.throws(
+    () => platformPackage("darwin", "x64"),
+    (error) =>
+      error instanceof UnsupportedPlatformError &&
+      error.discontinued &&
+      /Intel macOS \(darwin-x64\) is no longer supported/.test(error.message),
+  );
+  assert.throws(() => platformPackage("win32", "x64"), (error) => !error.discontinued);
 });

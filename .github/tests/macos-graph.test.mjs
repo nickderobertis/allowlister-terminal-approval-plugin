@@ -648,12 +648,12 @@ test("unresolved runner/call expressions fail instead of reporting zero", () => 
     );
   delete workflows["invalid.yml"];
 });
-// This dispatch host cannot execute Darwin binaries or a GitHub-hosted Mac job.
-// The real host-native release builder/pack/install journey is in the carrier's
-// release.journey.mjs. For non-native Darwin targets the task explicitly requires
-// artifact contracts and declared native/Rosetta install commands; actual Mac
-// execution remains third-party evidence, so this test does not claim it ran.
-test("release targets and exact-tag artifact dependencies preserve every platform with each Darwin compile once", () => {
+// This host cannot execute Darwin binaries or a GitHub-hosted Mac job. The real
+// release staging/publish journey (registry and forge doubled) is in the
+// carrier's release.journey.mjs; this test pins the declared targets. macOS ships
+// arm64 only, built natively on the one Mac release job; actual Mac execution
+// remains third-party evidence, so this test does not claim it ran.
+test("release targets and exact-tag artifact dependencies preserve every platform with one native arm64 Darwin compile", () => {
   const wf = workflows["publish.yml"];
   const linux = matrix(wf.jobs["build-binary"]);
   assert.deepEqual(
@@ -665,44 +665,31 @@ test("release targets and exact-tag artifact dependencies preserve every platfor
   );
   const darwin = wf.jobs["build-darwin"];
   const script = darwin.steps.map((s) => s.run ?? "").join("\n");
-  for (const [platform, target] of [
-    ["darwin-x64", "x86_64-apple-darwin"],
-    ["darwin-arm64", "aarch64-apple-darwin"],
-  ]) {
-    assert.equal(script.split(`just build-release ${target}`).length - 1, 1);
-    assert.match(
-      script,
-      new RegExp(
-        `target/${target}/release/allowlister-terminal-approval-plugin dist/artifacts/allowlister-terminal-approval-plugin-${platform}`,
-      ),
-    );
-  }
+  assert.deepEqual(
+    [...script.matchAll(/just build-release (\S+)/g)].map((m) => m[1]),
+    ["aarch64-apple-darwin"],
+  );
   assert.match(
     script,
-    /release:stage-npm -- dist\/artifacts darwin-x64 darwin-arm64/,
+    /target\/aarch64-apple-darwin\/release\/allowlister-terminal-approval-plugin dist\/artifacts\/allowlister-terminal-approval-plugin-darwin-arm64/,
   );
-  assert.match(script, /arch -x86_64 bash -c 'npm run release:smoke-npm'/);
+  assert.match(script, /release:stage-npm -- dist\/artifacts darwin-arm64\n/);
   assert.match(script, /test "\$\(uname -m\)" = arm64/);
-  assert.match(
-    script,
-    /lipo -verify_arch x86_64 dist\/artifacts\/allowlister-terminal-approval-plugin-darwin-x64/,
-  );
   assert.match(
     script,
     /lipo -verify_arch arm64 dist\/artifacts\/allowlister-terminal-approval-plugin-darwin-arm64/,
   );
-  assert.ok(
-    darwin.steps.some(
-      (s) =>
-        s.uses?.startsWith("actions/setup-node@") &&
-        s.with.architecture === "x64",
-    ),
+  assert.doesNotMatch(
+    script,
+    /x86_64|darwin-x64|rosetta|arch -/i,
+    "no Intel macOS build, cross-compile or Rosetta step",
   );
+  assert.ok(!darwin.steps.some((s) => s.with?.architecture));
   assert.deepEqual(
     darwin.steps
       .filter((step) => step.uses?.startsWith("actions/upload-artifact@"))
       .map((step) => step.with.name),
-    ["binary-darwin-x64", "binary-darwin-arm64"],
+    ["binary-darwin-arm64"],
   );
   for (const job of [wf.jobs["github-release"], wf.jobs["npm-publish"]])
     for (const step of job.steps.filter((step) =>
@@ -725,15 +712,12 @@ test("release targets and exact-tag artifact dependencies preserve every platfor
     "${{ github.event.release.tag_name }}",
   );
   const npm = wf.jobs["npm-publish"].steps.map((s) => s.run ?? "").join("\n");
-  for (const platform of [
-    ...linux.map((c) => c.platform),
-    "darwin-x64",
-    "darwin-arm64",
-  ])
+  for (const platform of [...linux.map((c) => c.platform), "darwin-arm64"])
     assert.match(
       npm,
       new RegExp(
         `publish_pkg allowlister-terminal-approval-plugin-${platform}`,
       ),
     );
+  assert.doesNotMatch(npm, /darwin-x64/);
 });

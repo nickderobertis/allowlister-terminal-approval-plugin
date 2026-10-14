@@ -280,7 +280,6 @@ test("shared strict SemVer accepts every existing release tag and agrees with th
     "",
     "-linux-x64",
     "-linux-arm64",
-    "-darwin-x64",
     "-darwin-arm64",
   ]) {
     const path = join(

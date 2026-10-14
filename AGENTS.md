@@ -43,6 +43,9 @@ releasing).
     compiles on Windows (so remote's Windows build is unaffected) but the binary
     ships for unix only, where it does something. A Windows `CONIN$`/`CONOUT$`
     prompt is a possible follow-up.
+  - *Intel macOS target* — only Apple Silicon is needed; each Intel build cost
+    the one paid Mac release job time for an unused artifact. The carrier
+    refuses Intel macOS by name (`lib/platform.mjs`).
   - *Perf/bench suite* — the plugin is a trivial spawn-once decision with no perf
     surface worth gating; `.cargo/config.toml` already tunes cold start.
 

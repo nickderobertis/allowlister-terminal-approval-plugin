@@ -9,11 +9,10 @@ targets = [
     "x86_64-unknown-linux-gnu",
     "aarch64-unknown-linux-gnu",
     # Release targets: static, non-PIE musl on Linux (see .cargo/config.toml);
-    # macOS ships x86_64 + arm64. The terminal experience is unix-only, so no
-    # Windows target.
+    # macOS ships arm64 (Apple Silicon) only. The terminal experience is
+    # unix-only, so no Windows target.
     "x86_64-unknown-linux-musl",
     "aarch64-unknown-linux-musl",
-    "x86_64-apple-darwin",
     "aarch64-apple-darwin",
 ]
 profile = "minimal"
