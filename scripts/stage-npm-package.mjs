@@ -24,9 +24,10 @@ const binary = "allowlister-terminal-approval-plugin";
 const allPlatforms = ["linux-x64", "linux-arm64", "darwin-arm64"];
 for (const platform of requestedPlatforms) {
   if (platform === "darwin-x64") {
-    throw new Error(
-      "Intel macOS (darwin-x64) is no longer supported; only darwin-arm64 is released for macOS",
+    console.error(
+      "Intel macOS (darwin-x64) is no longer supported; stage darwin-arm64 for macOS instead",
     );
+    process.exit(1);
   }
   if (!allPlatforms.includes(platform)) {
     throw new Error(
