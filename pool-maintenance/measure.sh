@@ -21,8 +21,9 @@
 # touch and date), where the hosts that run pool maintenance and the release-PR
 # job that checks this budget run.
 #
-# Exit status: 0 the timed pass ran over the stated workload; 1 a step failed or
-# the workload was not what the budget states (the message names which).
+# Prints one line on success. Exit status: 0 the timed pass ran over the stated
+# workload; 1 a step failed or the workload was not what the budget states (the
+# message names which, and what to do).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -40,8 +41,9 @@ fail() {
 
 # The entry lists each step leaves, kept as the run's evidence: alt (what the
 # alternative build created), ordinary (every other entry before the timed pass),
-# removed (what the timed pass removed) and the last build log. Not a profile
-# directory, so the pruner never touches it.
+# removed (what the timed pass removed), foreign (removed entries it did not
+# create), and the last build's and each pass's log. Not a profile directory, so
+# the pruner never touches it.
 work=target/pool-maintenance-measure
 rm -rf "$work"
 mkdir -p "$work"
@@ -61,18 +63,33 @@ gate_build() {
   local crate
   for crate in "${CRATES[@]}"; do
     bash tools/coverage/coverage.sh test "$crate" >"$work/build.log" 2>&1 \
-      || { cat "$work/build.log" >&2; fail "the gate's test build of $crate failed (above)"; }
+      || { cat "$work/build.log" >&2; fail "the gate's test build of $crate failed (above); fix that build, then re-run"; }
   done
 }
 
-# Only the timed pass may report.
+# The declared maintenance, its output kept in $work/<log> and shown only on failure.
+maintain() {
+  local log="$1" what="$2"
+  shift 2
+  env "$@" just pool-maintenance >"$work/$log" 2>&1 \
+    || { cat "$work/$log" >&2; fail "the $what failed (above); fix what the pruner reports (or install it with just bootstrap if it is missing), then re-run"; }
+}
+
+# Only the timed pass may report. Its result path comes from onebudgetspec check:
+# an absolute path in a directory that exists.
 result="${ONEBUDGETSPEC_RESULT:-}"
 unset ONEBUDGETSPEC_RESULT
+if [ -n "$result" ]; then
+  case "$result" in
+    /*) [ -d "$(dirname "$result")" ] || fail "ONEBUDGETSPEC_RESULT ($result) is in no existing directory; run this through onebudgetspec check, which sets it" ;;
+    *) fail "ONEBUDGETSPEC_RESULT ($result) is not an absolute path; run this through onebudgetspec check, which sets it" ;;
+  esac
+fi
 
 # a. Clear the backlog, untimed.
 started=$(date +%s.%N)
-just pool-maintenance >&2 || fail "the untimed backlog pass failed (above)"
-echo "measure: untimed backlog pass took $(awk -v a="$started" -v b="$(date +%s.%N)" 'BEGIN { printf "%.3f", b - a }') s (not the figure)" >&2
+maintain backlog.log "untimed backlog pass"
+backlog_seconds=$(awk -v a="$started" -v b="$(date +%s.%N)" 'BEGIN { printf "%.3f", b - a }')
 
 # b. The alternative build, backdated past the window. Its time sits below every
 #    entry already present, so no ordinary build that step c leaves untouched can
@@ -90,7 +107,6 @@ if [ -s "$work/before" ]; then
 fi
 # shellcheck disable=SC2016 # $STAMP is the inner bash's to expand, from its environment.
 STAMP="$stamp" xargs -d '\n' -a "$work/alt" bash -c 'find "$@" -exec touch -h -d "@$STAMP" {} +' _
-echo "measure: backdated $(wc -l <"$work/alt") entries the alternative build created to $(date -u -d "@$stamp" +%FT%TZ)" >&2
 
 # c. The ordinary gate build: each unit's newest build.
 gate_build
@@ -99,18 +115,19 @@ LC_ALL=C comm -23 "$work/after-ordinary" "$work/alt" >"$work/ordinary"
 
 # d. The timed pass, the one that reports.
 if [ -n "$result" ]; then
-  ONEBUDGETSPEC_RESULT="$result" just pool-maintenance >&2 || fail "the timed pass failed (above)"
+  maintain timed.log "timed pass" ONEBUDGETSPEC_RESULT="$result"
 else
-  just pool-maintenance >&2 || fail "the timed pass failed (above)"
+  maintain timed.log "timed pass"
 fi
 entries >"$work/after-prune"
 
+# Every removed entry must be one the alternative build created; anything else
+# (an ordinary entry among them) means the figure timed a different workload.
 LC_ALL=C comm -23 "$work/after-ordinary" "$work/after-prune" >"$work/removed"
-LC_ALL=C comm -23 "$work/ordinary" "$work/after-prune" >"$work/ordinary-lost"
 LC_ALL=C comm -23 "$work/removed" "$work/alt" >"$work/foreign"
-if [ -s "$work/ordinary-lost" ] || [ -s "$work/foreign" ]; then
-  cat "$work/ordinary-lost" "$work/foreign" >&2
-  fail "the timed pass removed entries above that the alternative build did not create"
+if [ -s "$work/foreign" ]; then
+  cat "$work/foreign" >&2
+  fail "the timed pass removed the entries above, which the alternative build did not create; run this on a checkout no other build is writing to, then re-run"
 fi
-[ -s "$work/removed" ] || fail "the timed pass removed none of the alternative build's entries"
-echo "measure: timed pass removed $(wc -l <"$work/removed") entries, all from the alternative build; all $(wc -l <"$work/ordinary") ordinary entries remain (lists in $work)" >&2
+[ -s "$work/removed" ] || fail "the timed pass removed none of the alternative build's entries; check that the ordinary build ran ($work/build.log) and that CARGO_PROFILE_DEV_DEBUG=$ALT_PROFILE_DEBUG still gives new metadata hashes"
+echo "measure: timed pass removed $(wc -l <"$work/removed") entries, all from the alternative build (backdated to $(date -u -d "@$stamp" +%FT%TZ)), and kept all $(wc -l <"$work/ordinary") ordinary ones; the untimed backlog pass took ${backlog_seconds} s, not the figure (lists and logs in $work)" >&2

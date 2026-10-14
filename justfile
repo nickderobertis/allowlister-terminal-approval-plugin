@@ -47,12 +47,7 @@ bootstrap:
     install_tool "cargo-llvm-cov@{{llvmcov-version}}"
     install_tool "cargo-deny@{{deny-version}}"
     install_tool "cargo-machete@{{machete-version}}"
-    # The pruner `pool-maintenance` names, at exactly the pinned release (any other
-    # version on PATH is replaced). It needs a newer Rust than rust-toolchain.toml
-    # pins, so it builds with the stable toolchain.
-    if [ "$(cargo-prune-superseded --version 2>/dev/null)" != "cargo-prune-superseded {{prune-superseded-version}}" ]; then
-        cargo +stable install --locked cargo-prune-superseded --version "={{prune-superseded-version}}"
-    fi
+    just install-prune-superseded
     # lefthook is a Go binary (no cargo source build): install the prebuilt if
     # reachable, otherwise warn rather than fail.
     if ! command -v lefthook >/dev/null && command -v cargo-binstall >/dev/null; then
@@ -69,6 +64,16 @@ bootstrap:
     # whenever the lock moved.
     bash tools/nx --version >/dev/null
     echo "✓ bootstrap complete"
+
+# Install the pruner `pool-maintenance` names at exactly the pinned release,
+# replacing any other version on PATH and a no-op over the pinned one. It needs a
+# newer Rust than rust-toolchain.toml pins, so it builds with the stable toolchain.
+[private]
+install-prune-superseded:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [ "$(cargo-prune-superseded --version 2>/dev/null)" != "cargo-prune-superseded {{prune-superseded-version}}" ] || exit 0
+    cargo +stable install --locked cargo-prune-superseded --version "={{prune-superseded-version}}"
 
 # Fetch locked dependencies and confirm the pinned toolchain is present.
 sync:

@@ -7,8 +7,10 @@
 //     one-crate fixture workspace (a stand-in tools/coverage/coverage.sh builds it
 //     with real cargo, as the gate's test build does), clears an old backlog
 //     untimed, then reports only the timed pass, which removes the alternative
-//     build and nothing of the ordinary one; a failing build fails it without a
-//     report.
+//     build and nothing of the ordinary one; each way a step can fail, or the
+//     workload can differ from the budget's, fails it without a report;
+//   * `just install-prune-superseded` (bootstrap's step) installs exactly the
+//     pinned release, with stand-ins for cargo and the installed pruner.
 //
 // Linux only, as measure.sh is (GNU find, touch and date).
 import assert from "node:assert/strict";
@@ -48,27 +50,54 @@ test("onevcs.toml runs the pool-maintenance recipe, which prunes every configure
   assert.deepEqual(args.slice(3).sort(), (dirs.length ? dirs : ["target"]).sort());
 });
 
-/** A scratch root: the real justfile and measure.sh, a fixture crate, and a stand-in gate test build. */
-function scratchRoot({ buildFails = false } = {}) {
+/**
+ * A scratch root: the real justfile and measure.sh, a fixture crate, and a
+ * stand-in gate test build that builds the fixture's test targets with real cargo
+ * into the profile directory the gate's instrumented build uses. FIXTURE_FAULT,
+ * when set, breaks one step the way a real checkout can:
+ *   alt-build    the alternative-profile build fails;
+ *   foreign      the ordinary build also leaves, once, an old superseded build of its own;
+ *   fresh-alt    the ordinary build leaves every entry modified now;
+ *   timed-fails  the ordinary build leaves, first on PATH (FIXTURE_BIN), a pruner
+ *                that fails.
+ */
+function scratchRoot() {
   const root = mkdtempSync(join(tmpdir(), "pool-maintenance-"));
   scratch.push(root);
   mkdirSync(join(root, "pool-maintenance"));
   mkdirSync(join(root, "tools/coverage"), { recursive: true });
   mkdirSync(join(root, "src"));
+  mkdirSync(join(root, "bin"));
   copyFileSync(join(repo, "justfile"), join(root, "justfile"));
   copyFileSync(join(repo, "pool-maintenance/measure.sh"), join(root, "pool-maintenance/measure.sh"));
   writeFileSync(join(root, "Cargo.toml"), '[package]\nname = "fixture"\nversion = "0.0.0"\nedition = "2021"\n\n[workspace]\n');
   writeFileSync(join(root, "src/lib.rs"), "pub fn answer() -> u32 { 42 }\n");
-  // Builds the fixture's test targets with real cargo into the profile directory
-  // the gate's instrumented build uses; fails when told to, under the alternative
-  // profile only.
   writeFileSync(
     join(root, "tools/coverage/coverage.sh"),
     `#!/usr/bin/env bash
 set -euo pipefail
 [ "$1" = test ] || exit 2
-if [ -n "${buildFails ? "1" : ""}" ] && [ -n "\${CARGO_PROFILE_DEV_DEBUG:-}" ]; then echo "error: could not compile fixture" >&2; exit 101; fi
-CARGO_TARGET_DIR=target/llvm-cov-target exec cargo test --offline --no-run -q
+export CARGO_TARGET_DIR=target/llvm-cov-target
+profile=target/llvm-cov-target/debug
+build() { cargo test --offline --no-run -q; }
+entries() { for k in deps .fingerprint build incremental; do [ ! -d "$profile/$k" ] || find "$profile/$k" -mindepth 1 -maxdepth 1; done | sort; }
+fault="\${FIXTURE_FAULT:-}"
+if [ -n "\${CARGO_PROFILE_DEV_DEBUG:-}" ]; then
+  [ "$fault" != alt-build ] || { echo "error: could not compile fixture" >&2; exit 101; }
+  build; exit
+fi
+# Once: cargo would rebuild the backdated build on the next call, as outputs older than their sources.
+if [ "$fault" = foreign ] && [ ! -e foreign-built ]; then
+  touch foreign-built
+  before="$(entries)"
+  CARGO_PROFILE_DEV_OPT_LEVEL=2 build
+  comm -13 <(printf '%s\\n' "$before") <(entries) | while IFS= read -r e; do find "$e" -exec touch -h -d "10 days ago" {} +; done
+fi
+build
+case "$fault" in
+  fresh-alt) find target -exec touch -h {} + ;;
+  timed-fails) printf '#!/bin/sh\\necho "error: target: Permission denied (os error 13)" >&2\\nexit 1\\n' > "$FIXTURE_BIN/cargo-prune-superseded"; chmod +x "$FIXTURE_BIN/cargo-prune-superseded" ;;
+esac
 `,
   );
   chmodSync(join(root, "tools/coverage/coverage.sh"), 0o755);
@@ -90,9 +119,9 @@ function build(root, env) {
   return [...entries(root)].filter((e) => !before.has(e));
 }
 
-function measure(root) {
+function measure(root, env = {}) {
   const result = join(root, "result.json");
-  const out = run("bash", ["pool-maintenance/measure.sh"], { cwd: root, env: { ...process.env, ONEBUDGETSPEC_RESULT: result } });
+  const out = run("bash", ["pool-maintenance/measure.sh"], { cwd: root, env: { ...process.env, ONEBUDGETSPEC_RESULT: result, ...env } });
   return { ...out, result: existsSync(result) ? JSON.parse(readFileSync(result, "utf8")) : null };
 }
 
@@ -109,8 +138,8 @@ test("measure.sh reports only the timed pass, which removes the alternative buil
 
   const out = measure(root);
   assert.equal(out.status, 0, out.stderr);
-  assert.match(out.stderr, /untimed backlog pass took [\d.]+ s \(not the figure\)/);
-  assert.match(out.stderr, /timed pass removed [1-9]\d* entries, all from the alternative build/);
+  // One line on success: the timed pass's workload, and the backlog pass apart from the figure.
+  assert.match(out.stderr, /^measure: timed pass removed [1-9]\d* entries, all from the alternative build .*; the untimed backlog pass took [\d.]+ s, not the figure .*\n$/);
 
   const left = entries(root);
   for (const e of backlog) assert.ok(!left.has(e), `backlog ${e} cleared`);
@@ -125,12 +154,94 @@ test("measure.sh reports only the timed pass, which removes the alternative buil
   assert.equal(Number(out.result.detail.match(/builds removed: (\d+);/)?.[1]), ordinaryFps.length, out.result.detail);
 });
 
-test("a failing gate build fails measure.sh by name, and nothing is reported", linuxOnly, () => {
-  const root = scratchRoot({ buildFails: true });
+/** PATH without any directory holding a real cargo or cargo-prune-superseded. */
+const pathWithout = () => process.env.PATH.split(":").filter((d) => !existsSync(join(d, "cargo")) && !existsSync(join(d, "cargo-prune-superseded")));
+
+/**
+ * Run measure.sh, with `fault`, over a root whose ordinary build already ran;
+ * expect it to fail. A failure before the timed pass leaves no report; one after
+ * it is a non-zero exit, which onebudgetspec check records as an error whatever
+ * the pruner reported.
+ */
+function refused(fault, { setup = () => {}, beforeTimedPass = true, env = {} } = {}) {
+  const root = scratchRoot();
   build(root, {});
-  const out = measure(root);
-  assert.equal(out.status, 1);
-  assert.match(out.stderr, /could not compile fixture/);
-  assert.match(out.stderr, /measure: the gate's test build of allowlister-terminal-approval-plugin failed/);
-  assert.equal(out.result, null);
+  setup(root);
+  const out = measure(root, { FIXTURE_FAULT: fault, FIXTURE_BIN: join(root, "bin"), PATH: `${join(root, "bin")}:${process.env.PATH}`, ...env });
+  assert.equal(out.status, 1, out.stderr);
+  if (beforeTimedPass) assert.equal(out.result, null, "nothing is reported");
+  return out.stderr;
+}
+
+test("a failing gate build fails measure.sh by name, and nothing is reported", linuxOnly, () => {
+  const stderr = refused("alt-build");
+  assert.match(stderr, /could not compile fixture/);
+  assert.match(stderr, /measure: the gate's test build of allowlister-terminal-approval-plugin failed \(above\); fix that build, then re-run/);
+});
+
+test("a missing pruner fails the backlog pass, naming bootstrap", linuxOnly, () => {
+  const stderr = refused("", { env: { PATH: pathWithout().join(":") } });
+  assert.match(stderr, /cargo-prune-superseded: command not found/);
+  assert.match(stderr, /measure: the untimed backlog pass failed \(above\); .*just bootstrap/);
+});
+
+test("a failing timed pass fails measure.sh with the pruner's own error", linuxOnly, () => {
+  const stderr = refused("timed-fails", { beforeTimedPass: false });
+  assert.match(stderr, /error: target: Permission denied/);
+  assert.match(stderr, /measure: the timed pass failed \(above\)/);
+});
+
+test("an alternative build already present within the window is refused, naming what to remove", linuxOnly, () => {
+  const stderr = refused("", { setup: (root) => build(root, { CARGO_PROFILE_DEV_DEBUG: "line-tables-only" }) });
+  assert.match(stderr, /measure: the alternative build created no new build entries.*remove target\/llvm-cov-target, then re-run/);
+});
+
+test("a timed pass that removes a build the alternative configuration did not create is refused, listing it", linuxOnly, () => {
+  const stderr = refused("foreign", { beforeTimedPass: false });
+  assert.match(stderr, /target\/llvm-cov-target\/debug\/\.fingerprint\/fixture-[0-9a-f]{16}\n/);
+  assert.match(stderr, /measure: the timed pass removed the entries above, which the alternative build did not create/);
+});
+
+test("a timed pass that removes nothing is refused rather than reported", linuxOnly, () => {
+  const stderr = refused("fresh-alt", { beforeTimedPass: false });
+  assert.match(stderr, /measure: the timed pass removed none of the alternative build's entries/);
+});
+
+test("a result path onebudgetspec could not have set is refused before anything runs", linuxOnly, () => {
+  const root = scratchRoot();
+  for (const bad of ["relative/result.json", join(root, "missing-dir/result.json")]) {
+    const out = run("bash", ["pool-maintenance/measure.sh"], { cwd: root, env: { ...process.env, ONEBUDGETSPEC_RESULT: bad } });
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, /measure: ONEBUDGETSPEC_RESULT .* run this through onebudgetspec check/);
+    assert.ok(!existsSync(join(root, "target/llvm-cov-target")), "no build ran");
+  }
+});
+
+/** `just install-prune-superseded` with stand-ins for cargo and an installed pruner reporting `installed`. */
+function install(installed) {
+  const bin = mkdtempSync(join(tmpdir(), "prune-install-"));
+  scratch.push(bin);
+  const record = join(bin, "calls");
+  writeFileSync(join(bin, "cargo"), `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> ${JSON.stringify(record)}\n`);
+  chmodSync(join(bin, "cargo"), 0o755);
+  if (installed) {
+    writeFileSync(join(bin, "cargo-prune-superseded"), `#!/usr/bin/env bash\necho "cargo-prune-superseded ${installed}"\n`);
+    chmodSync(join(bin, "cargo-prune-superseded"), 0o755);
+  }
+  // Only the stand-ins and the shell's own tools: no real pruner or cargo on PATH.
+  const path = [bin, ...pathWithout()].join(":");
+  const just = run("bash", ["-c", "command -v just"]).stdout.trim();
+  const out = run(just, ["install-prune-superseded"], { cwd: repo, env: { ...process.env, PATH: path } });
+  assert.equal(out.status, 0, out.stderr);
+  return existsSync(record) ? readFileSync(record, "utf8").trim().split("\n") : [];
+}
+
+test("bootstrap installs exactly the pinned pruner, replacing another version, and skips the pinned one", () => {
+  assert.match(readFileSync(join(repo, "justfile"), "utf8"), /^bootstrap:[\s\S]*?^ {4}just install-prune-superseded$/m);
+  const pin = readFileSync(join(repo, "justfile"), "utf8").match(/^prune-superseded-version := "([^"]+)"$/m)?.[1];
+  assert.ok(pin, "one pinned version in the justfile");
+  const installs = [`+stable install --locked cargo-prune-superseded --version =${pin}`];
+  assert.deepEqual(install(null), installs, "missing: installed");
+  assert.deepEqual(install("0.0.1"), installs, "another version: replaced");
+  assert.deepEqual(install(pin), [], "the pinned version: left alone");
 });
