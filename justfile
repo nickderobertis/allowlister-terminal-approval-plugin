@@ -19,6 +19,9 @@ nextest-version := "0.9.137"
 llvmcov-version := "0.8.7"
 deny-version := "0.19.8"
 machete-version := "0.9.2"
+# The cargo-prune-superseded release `pool-maintenance` runs; bootstrap installs
+# exactly this one (onevcs's pool maintenance runs it on hosts).
+prune-superseded-version := "0.1.1"
 
 _default:
     @just --list --unsorted
@@ -44,6 +47,12 @@ bootstrap:
     install_tool "cargo-llvm-cov@{{llvmcov-version}}"
     install_tool "cargo-deny@{{deny-version}}"
     install_tool "cargo-machete@{{machete-version}}"
+    # The pruner `pool-maintenance` names, at exactly the pinned release (any other
+    # version on PATH is replaced). It needs a newer Rust than rust-toolchain.toml
+    # pins, so it builds with the stable toolchain.
+    if [ "$(cargo-prune-superseded --version 2>/dev/null)" != "cargo-prune-superseded {{prune-superseded-version}}" ]; then
+        cargo +stable install --locked cargo-prune-superseded --version "={{prune-superseded-version}}"
+    fi
     # lefthook is a Go binary (no cargo source build): install the prebuilt if
     # reachable, otherwise warn rather than fail.
     if ! command -v lefthook >/dev/null && command -v cargo-binstall >/dev/null; then
@@ -195,6 +204,19 @@ check tier="affected": (nx-tier tier "-t format-check lint typecheck test build 
 upgrade:
     cargo update
     @just check all
+
+# onevcs runs this in idle warm-pool slots (onevcs.toml). `target` is every
+# directory this repository's builds write to (the `target-dir`
+# .cargo/config.toml sets; `llvm-cov-target` nests inside it).
+# Prune superseded cargo builds, keeping each unit's newest and any within 2 days.
+pool-maintenance:
+    cargo-prune-superseded --keep-within 2d target
+
+# It builds the workspace twice, so no per-change tier runs it: CI runs it on the
+# release PR, after the full sweep.
+# Check the pool-maintenance pass-time budget (pool-maintenance/budgets.yaml).
+pool-maintenance-budget:
+    @bash tools/nx run pool-maintenance:budgets-host --output-style=static
 
 # Remove build artifacts.
 clean:

@@ -9,6 +9,8 @@
 //     release-plz's release pull request and the affected tier on every other
 //     pull request and on a push to main, with a failing sweep failing the job;
 //   * the release re-gate in publish.yml is the full sweep over every project;
+//   * the pool-maintenance budget runs after every gate leg on the release PR's
+//     full sweep only, and no contract job or gate recipe runs it;
 //   * notignored is a workflow and job of its own, outside the contract.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -442,6 +444,44 @@ test(
         "the artifacts publish only after the gate",
       );
     }
+  },
+);
+
+test(
+  "the pool-maintenance budget runs after the gate on the release PR's sweep, and on no other event",
+  { skip: journeySkip },
+  () => {
+    const job = workflows["ci.yml"].jobs["pool-maintenance-budget"];
+    assert.equal(job.needs, "test", "after every gate leg");
+    assert.ok(!contexts("pool-maintenance-budget", job).some((c) => c in CONTRACT));
+    const router = job.steps.find((s) => s.id === "tier");
+    assert.equal(router?.run, "node .github/scripts/gate-tier.mjs");
+    const budget = job.steps.at(-1);
+    assert.equal(budget.run, "just pool-maintenance-budget");
+    // Every step after the router, the budget included, runs only on the sweep.
+    for (const step of job.steps.slice(job.steps.indexOf(router) + 1))
+      assert.equal(step.if, "steps.tier.outputs.tier == 'all'", step.name ?? step.uses);
+    const tiers = {
+      "release-plz's release pull request": route("pull_request", pullRequest("release-plz-2026-10-07T12-00-00Z")).tier,
+      "an ordinary pull request": route("pull_request", pullRequest("feature")).tier,
+      "a push to main": route("push", { before: history.m1 }).tier,
+    };
+    assert.deepEqual(tiers, {
+      "release-plz's release pull request": "all",
+      "an ordinary pull request": "affected",
+      "a push to main": "affected",
+    });
+    // The recipe runs exactly the project's budget check, and nothing else.
+    const run = gateSandbox();
+    const { status, stderr, calls } = run(budget.run);
+    assert.equal(status, 0, stderr);
+    assert.deepEqual(calls, ["run pool-maintenance:budgets-host --output-style=static"]);
+    assert.ok(!GATE_TARGETS.includes("budgets-host"), "the gate recipe never names the budget's target");
+    for (const [file, id, other] of contractJobs)
+      assert.ok(
+        !other.steps.some((s) => /pool-maintenance/.test(s.run ?? "")),
+        `${file}:${id} must not run the pool-maintenance budget`,
+      );
   },
 );
 

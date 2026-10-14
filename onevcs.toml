@@ -1,0 +1,13 @@
+# This repository's pool maintenance, declared for onevcs. onevcs reads this file
+# from the publication checkout of the base branch (never a session's branch) and
+# runs `command` in each idle warm-pool slot's worktree, never in a slot a session
+# holds. The command is the justfile's `pool-maintenance` recipe: the pinned
+# cargo-prune-superseded over every cargo target dir this repository builds into,
+# removing superseded builds (in deps/, .fingerprint/, build/ and incremental/)
+# while keeping each compiled unit's newest build and every build modified within
+# the last 2 days, so a slot's next build stays warm.
+schema_version = 1
+
+[pool.maintain]
+command = ["just", "pool-maintenance"]
+timeout = "30m"

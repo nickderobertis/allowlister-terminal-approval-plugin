@@ -31,6 +31,7 @@
     "coverage": { "cache": false },
     "supply-chain": { "cache": false },
     "release-check": { "cache": false },
-    "msrv": { "cache": false }
+    "msrv": { "cache": false },
+    "budgets-host": { "cache": false }
   }
 }

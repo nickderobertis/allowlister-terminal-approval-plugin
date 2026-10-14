@@ -116,6 +116,33 @@ test("the carrier's suite is a target of the full sweep and of the gate", () => 
   }
 });
 
+test("no gate tier runs the pool-maintenance measurement or its budget check; its own lint and test do run", () => {
+  const measured = (tasks) => tasks.filter((t) => t.startsWith("pool-maintenance:") && !["pool-maintenance:lint", "pool-maintenance:test"].includes(t));
+  const sweep = Object.keys(taskGraph("run-many", ...recipeArgs("check")));
+  assert.deepEqual(measured(sweep), [], "`just check all`");
+  assert.ok(sweep.includes("pool-maintenance:test"), `the sweep tests measure.sh (got ${sweep})`);
+  // One commit per change: sources, the maintenance files, and project configuration.
+  const edits = {
+    "src/prompt.rs": (t) => `${t}\n// touched\n`,
+    "pool-maintenance/measure.sh": (t) => `${t}\n# touched\n`,
+    "pool-maintenance/budgets.yaml": (t) => `${t}\n# touched\n`,
+    "onevcs.toml": (t) => `${t}\n# touched\n`,
+    justfile: (t) => `${t}\n# touched\n`,
+    "pool-maintenance/project.json": (t) => t.replace('"//": "', '"//": "Touched. '),
+    "nx.json": (t) => t.replace('"//": "', '"//": "Touched. '),
+  };
+  for (const [file, edit] of Object.entries(edits)) {
+    git(dir, "reset", "-q", "--hard", base);
+    writeFileSync(join(dir, file), edit(readFileSync(join(dir, file), "utf8")));
+    git(dir, "commit", "-q", "-am", "change");
+    const tasks = Object.keys(taskGraph("affected", `--base=${base}`, "--head=HEAD", ...recipeArgs("check")));
+    assert.deepEqual(measured(tasks), [], `\`just check\` after a change to ${file}`);
+    if (file.startsWith("pool-maintenance/")) assert.ok(tasks.includes("pool-maintenance:test"), `${file} reaches measure.sh's test (got ${tasks})`);
+  }
+  git(dir, "reset", "-q", "--hard", base);
+  assert.deepEqual(Object.keys(taskGraph("run", "pool-maintenance:budgets-host")), ["pool-maintenance:budgets-host"]);
+});
+
 const realJust = spawnSync("bash", ["-c", "command -v just"], { encoding: "utf8" }).stdout.trim();
 
 test("`just test` on a carrier-only change runs the carrier's suite as its graph target, and fails when it fails", { skip: !realJust && "just is not on PATH" }, () => {
