@@ -249,13 +249,6 @@ upgrade:
     cargo update
     @just check all
 
-# The pool-maintenance project is excluded: its budget builds the workspace
-# twice, so only `pool-maintenance-budget` runs it.
-# Check every project's budgets (`budgets` + `budgets-host`), then the root budgets.yaml if any.
-budgets tier="affected": (nx-tier tier "-t budgets budgets-host --exclude=pool-maintenance")
-    @[ ! -f budgets.yaml ] || { npm ci --prefix .github/tooling --ignore-scripts --silent \
-        && node .github/tooling/node_modules/@onebudgetspec/cli/bin/onebudgetspec.js check budgets.yaml; }
-
 # onevcs runs this in idle warm-pool slots (onevcs.toml). `target` is every
 # directory this repository's builds write to (the `target-dir`
 # .cargo/config.toml sets; `llvm-cov-target` nests inside it).
