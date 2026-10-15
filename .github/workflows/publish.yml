@@ -206,9 +206,10 @@ jobs:
 
   # crates.io publishing is opt-in: set the repository variable
   # PUBLISH_TO_CRATES_IO=true and provide the CARGO_REGISTRY_TOKEN secret. This is
-  # what allowlister-remote depends on as a semver version.
+  # what allowlister-remote depends on as a semver version. It waits on the
+  # Apple Silicon build so no release publishes anywhere before that build is green.
   crates-publish:
-    needs: [test]
+    needs: [test, build-darwin]
     if: ${{ vars.PUBLISH_TO_CRATES_IO == 'true' }}
     runs-on: ubuntu-latest
     steps:

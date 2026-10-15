@@ -721,3 +721,40 @@ test("release targets and exact-tag artifact dependencies preserve every platfor
     );
   assert.doesNotMatch(npm, /darwin-x64/);
 });
+
+// Every job that publishes (forge release, npm, crates.io) must wait, through its
+// needs chain, on the Apple Silicon build succeeding: plain `needs` (no
+// always()/failure() override) means a failed build-darwin skips the job.
+test("every publishing job depends on the arm64 Darwin build succeeding", () => {
+  const { jobs } = workflows["publish.yml"];
+  const needsOf = (id) => [jobs[id].needs ?? []].flat();
+  const upstream = (id, seen = new Set()) => {
+    for (const dep of needsOf(id))
+      if (!seen.has(dep)) {
+        seen.add(dep);
+        upstream(dep, seen);
+      }
+    return seen;
+  };
+  const publishing = Object.keys(jobs).filter((id) =>
+    jobs[id].steps.some(
+      (s) =>
+        /\b(npm|cargo) publish\b/.test(s.run ?? "") ||
+        s.uses?.startsWith("softprops/action-gh-release@"),
+    ),
+  );
+  assert.deepEqual(publishing.sort(), [
+    "crates-publish",
+    "github-release",
+    "npm-publish",
+  ]);
+  for (const id of publishing) {
+    assert.ok(upstream(id).has("build-darwin"), `${id} needs build-darwin`);
+    assert.doesNotMatch(
+      String(jobs[id].if ?? ""),
+      /always\(|failure\(|cancelled\(/,
+      `${id} must not run past a failed build-darwin`,
+    );
+  }
+  assert.ok(!upstream("build-darwin").has("crates-publish"));
+});
