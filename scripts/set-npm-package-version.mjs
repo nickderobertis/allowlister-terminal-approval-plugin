@@ -32,7 +32,6 @@ const parent = "allowlister-terminal-approval-plugin";
 const platformPackages = [
   "allowlister-terminal-approval-plugin-linux-x64",
   "allowlister-terminal-approval-plugin-linux-arm64",
-  "allowlister-terminal-approval-plugin-darwin-x64",
   "allowlister-terminal-approval-plugin-darwin-arm64",
 ];
 

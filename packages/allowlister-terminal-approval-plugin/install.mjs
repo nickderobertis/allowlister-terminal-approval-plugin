@@ -8,13 +8,15 @@
 // allowlister can call the plugin hundreds of times in a single agent session.
 //
 // If anything goes wrong we leave the JS launcher in place as a working fallback
-// and never fail the install.
+// and never fail the install — except on a discontinued platform (Intel macOS),
+// where no binary is published any more: there the install is refused with a
+// message saying so, rather than leaving a launcher that can never run.
 
 import { chmodSync, copyFileSync, existsSync, readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { binarySpecifier } from "./lib/platform.mjs";
+import { binarySpecifier, UnsupportedPlatformError } from "./lib/platform.mjs";
 
 const require = createRequire(import.meta.url);
 // Resolve symlinks so a workspace link does not make us look like an install.
@@ -60,6 +62,10 @@ if (inWorkspaceCheckout(here)) {
       "allowlister-terminal-approval-plugin: linked the native binary directly onto the command path",
     );
   } catch (error) {
+    if (error instanceof UnsupportedPlatformError && error.discontinued) {
+      console.error(`allowlister-terminal-approval-plugin: ${error.message}`);
+      process.exit(1);
+    }
     const message = error instanceof Error ? error.message : String(error);
     console.log(`allowlister-terminal-approval-plugin: keeping the JS launcher fallback (${message})`);
   }

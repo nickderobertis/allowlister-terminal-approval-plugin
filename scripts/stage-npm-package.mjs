@@ -20,8 +20,15 @@ const binary = "allowlister-terminal-approval-plugin";
 
 // One package per unix platform; the release workflow names each artifact
 // `<binary>-<platform>`.
-const allPlatforms = ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64"];
+// macOS ships Apple Silicon only; Intel macOS is discontinued and refused by name.
+const allPlatforms = ["linux-x64", "linux-arm64", "darwin-arm64"];
 for (const platform of requestedPlatforms) {
+  if (platform === "darwin-x64") {
+    console.error(
+      "Intel macOS (darwin-x64) is no longer supported; stage darwin-arm64 for macOS instead",
+    );
+    process.exit(1);
+  }
   if (!allPlatforms.includes(platform)) {
     throw new Error(
       `Unknown platform ${platform}; expected one of ${allPlatforms.join(", ")}`,

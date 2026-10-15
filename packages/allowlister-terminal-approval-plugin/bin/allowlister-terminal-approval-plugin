@@ -10,7 +10,7 @@
 
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
-import { binarySpecifier } from "../lib/platform.mjs";
+import { binarySpecifier, UnsupportedPlatformError } from "../lib/platform.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -18,6 +18,12 @@ let binary;
 try {
   binary = require.resolve(binarySpecifier());
 } catch (error) {
+  // A discontinued platform (Intel macOS) is refused outright: its package is no
+  // longer published, so there is nothing to resolve.
+  if (error instanceof UnsupportedPlatformError && error.discontinued) {
+    console.error(error.message);
+    process.exit(1);
+  }
   console.error(
     `Missing native allowlister-terminal-approval-plugin binary for ${process.platform}-${process.arch}.`,
   );

@@ -52,9 +52,11 @@ cargo install allowlister-terminal-approval-plugin
 Prebuilt binaries and checksums are also attached to each
 [GitHub Release](https://github.com/nickderobertis/allowlister-terminal-approval-plugin/releases).
 
-**Unix only** (Linux and macOS): the prompt renders on the controlling terminal
-(`/dev/tty`). The library still compiles everywhere, but the binary ships for
-unix, where it has something to do.
+**Unix only** (Linux x64/arm64 and Apple Silicon macOS): the prompt renders on
+the controlling terminal (`/dev/tty`). The library still compiles everywhere, but
+the binary ships for unix, where it has something to do. Intel macOS is no longer
+supported: no Intel macOS binary is released, and the npm package refuses to
+install there.
 
 ## Configure allowlister
 

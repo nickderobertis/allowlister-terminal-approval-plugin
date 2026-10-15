@@ -16,8 +16,9 @@ export npm_config_cache="${npm_config_cache:-$tmp_dir/npm-cache}"
 
 platform="$(node -e 'process.stdout.write(process.platform + "-" + process.arch)')"
 case "$platform" in
-  linux-x64|linux-arm64|darwin-x64|darwin-arm64)
+  linux-x64|linux-arm64|darwin-arm64)
     plat_pkg="allowlister-terminal-approval-plugin-$platform" ;;
+  darwin-x64) echo "npm package smoke: Intel macOS (darwin-x64) is no longer supported; only darwin-arm64 is released for macOS" >&2; exit 1 ;;
   *) echo "npm package smoke: unsupported platform $platform" >&2; exit 1 ;;
 esac
 
