@@ -18,7 +18,7 @@
 // Linux only, as measure.sh is (GNU find, touch and date).
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -183,7 +183,11 @@ test("a failing gate build fails measure.sh by name, and nothing is reported", l
 });
 
 test("a missing pruner fails the backlog pass, naming bootstrap", linuxOnly, () => {
-  const stderr = refused("", { env: { PATH: pathWithout().join(":") } });
+  // `just` alone, linked in: CI installs it beside cargo, which pathWithout drops.
+  const bin = mkdtempSync(join(tmpdir(), "just-only-"));
+  scratch.push(bin);
+  symlinkSync(run("bash", ["-c", "command -v just"]).stdout.trim(), join(bin, "just"));
+  const stderr = refused("", { env: { PATH: [bin, ...pathWithout()].join(":") } });
   assert.match(stderr, /cargo-prune-superseded: command not found/);
   assert.match(stderr, /measure: the untimed backlog pass failed \(above\); .*just bootstrap/);
 });
