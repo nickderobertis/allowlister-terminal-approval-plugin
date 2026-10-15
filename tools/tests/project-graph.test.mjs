@@ -122,6 +122,7 @@ test("no gate tier runs the pool-maintenance measurement or its budget check; it
   const sweep = Object.keys(taskGraph("run-many", ...recipeArgs("check")));
   assert.deepEqual(measured(sweep), [], "`just check all`");
   for (const t of cheap) assert.ok(sweep.includes(t), `the sweep runs ${t} (got ${sweep})`);
+  assert.deepEqual(measured(Object.keys(taskGraph("run-many", ...recipeArgs("budgets")))), [], "`just budgets all`");
   // One commit per change: sources, the maintenance files, and project configuration.
   const edits = {
     "src/prompt.rs": (t) => `${t}\n// touched\n`,
@@ -138,6 +139,8 @@ test("no gate tier runs the pool-maintenance measurement or its budget check; it
     git(dir, "commit", "-q", "-am", "change");
     const tasks = Object.keys(taskGraph("affected", `--base=${base}`, "--head=HEAD", ...recipeArgs("check")));
     assert.deepEqual(measured(tasks), [], `\`just check\` after a change to ${file}`);
+    const budgets = Object.keys(taskGraph("affected", `--base=${base}`, "--head=HEAD", ...recipeArgs("budgets")));
+    assert.deepEqual(measured(budgets), [], `\`just budgets\` after a change to ${file}`);
     if (file.startsWith("pool-maintenance/")) for (const t of cheap) assert.ok(tasks.includes(t), `${file} reaches ${t} (got ${tasks})`);
   }
   git(dir, "reset", "-q", "--hard", base);

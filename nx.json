@@ -32,6 +32,15 @@
     "supply-chain": { "cache": false },
     "release-check": { "cache": false },
     "msrv": { "cache": false },
+    "budgets": {
+      "cache": true,
+      "inputs": [
+        "{projectRoot}/**/*",
+        "^default",
+        { "dependentTasksOutputFiles": "**/telemetry/*.json" },
+        "{workspaceRoot}/.github/tooling/package-lock.json"
+      ]
+    },
     "budgets-host": { "cache": false }
   }
 }
