@@ -1,0 +1,53 @@
+{
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "name": "pool-maintenance",
+  "//": "The pool maintenance onevcs runs in idle warm-pool slots (onevcs.toml -> the justfile's `pool-maintenance` recipe) and its pass-time budget. `budgets-host` builds the workspace twice, so no per-change tier selects it: `check` never names that target, and CI runs it only on the release PR, after the full sweep (`just pool-maintenance-budget`). `format-check`, `lint` and `test` cover measure.sh on every change that reaches it. The budget check runs the onebudgetspec CLI the github-workflows project's private tooling lock pins.",
+  "projectType": "library",
+  "tags": [
+    "type:tooling",
+    "scope:repo"
+  ],
+  "implicitDependencies": [],
+  "namedInputs": {
+    "default": [
+      "{projectRoot}/**/*",
+      "sharedGlobals",
+      "{workspaceRoot}/onevcs.toml",
+      "{workspaceRoot}/justfile",
+      "{workspaceRoot}/.cargo/config.toml"
+    ]
+  },
+  "targets": {
+    "format": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "shfmt -w pool-maintenance"
+      }
+    },
+    "format-check": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "shfmt -d pool-maintenance"
+      },
+      "//": "shfmt (pinned and installed by `just bootstrap`) over the project's shell scripts, in the style pool-maintenance/.editorconfig sets; fails with the diff."
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bash -n pool-maintenance/measure.sh"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node --test pool-maintenance/tests/*.test.mjs"
+      }
+    },
+    "budgets-host": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npm ci --prefix .github/tooling --ignore-scripts && node .github/tooling/node_modules/@onebudgetspec/cli/bin/onebudgetspec.js check pool-maintenance/budgets.yaml --label host"
+      }
+    }
+  }
+}

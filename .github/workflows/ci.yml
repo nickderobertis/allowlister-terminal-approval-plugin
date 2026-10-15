@@ -97,6 +97,46 @@ jobs:
           NX_BASE: ${{ steps.tier.outputs.base }}
         run: just check "$TIER"
 
+  # llmlint: ignore-block[no_second_broader_sweep_over_an_already_gated_commit] this job runs no gating target and no sweep: only pool-maintenance:budgets-host, one host budget measurement that the declared-maintenance task requires on the release PR after its gate; its two builds construct the superseded-build workload the timed pruner pass removes, and the figure is that pass alone.
+  # The pool-maintenance pass-time budget (pool-maintenance/budgets.yaml) builds
+  # the workspace twice, so only the release PR's full sweep pays for it: after
+  # every gate leg, on the tier the router picks; on any other event it stops
+  # once routed.
+  pool-maintenance-budget:
+    name: pool-maintenance budget
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Choose the gate tier
+        id: tier
+        run: node .github/scripts/gate-tier.mjs
+      - name: Install pinned toolchain
+        if: steps.tier.outputs.tier == 'all'
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+        if: steps.tier.outputs.tier == 'all'
+        with:
+          cache-bin: false
+      - uses: taiki-e/install-action@v2
+        if: steps.tier.outputs.tier == 'all'
+        with:
+          tool: just,cargo-nextest,cargo-llvm-cov,cargo-deny,cargo-machete
+      - name: Bootstrap
+        if: steps.tier.outputs.tier == 'all'
+        run: just bootstrap
+      - name: Pool-maintenance budget
+        if: steps.tier.outputs.tier == 'all'
+        run: just pool-maintenance-budget
+  # llmlint: ignore-end[no_second_broader_sweep_over_an_already_gated_commit]
+
   macos-test:
     name: macOS PR proof
     needs: macos-policy
