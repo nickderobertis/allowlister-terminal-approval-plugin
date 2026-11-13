@@ -33,7 +33,7 @@ const run = (cmd, args, opts = {}) => spawnSync(cmd, args, { encoding: "utf8", .
 
 test("onevcs.toml runs the pool-maintenance recipe, which prunes every configured target dir with a 2-day window", () => {
   const toml = readFileSync(join(repo, "onevcs.toml"), "utf8");
-  assert.match(toml, /^schema_version = 1$/m);
+  assert.match(toml, /^schema_version = 2$/m);
   assert.match(toml, /^command = \["just", "pool-maintenance"\]$/m);
   const recipe = run("just", ["--show", "pool-maintenance"], { cwd: repo });
   assert.equal(recipe.status, 0, recipe.stderr);

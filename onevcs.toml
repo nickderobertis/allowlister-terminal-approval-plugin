@@ -6,8 +6,12 @@
 # removing superseded builds (in deps/, .fingerprint/, build/ and incremental/)
 # while keeping each compiled unit's newest build and every build modified within
 # the last 2 days, so a slot's next build stays warm.
-schema_version = 1
+schema_version = 2
 
 [pool.maintain]
 command = ["just", "pool-maintenance"]
 timeout = "30m"
+
+[policy]
+publication = "change-auto"
+approvals = "none"
